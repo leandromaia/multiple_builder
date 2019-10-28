@@ -3,20 +3,21 @@ import os
 import argparse
 from subprocess import check_call, Popen, PIPE, check_output
 
-repo_paths = ('c:/AEL/repositories/com.ericsson.bss.ael.aep.plugins', )
-                # 'sample_repo_1',
-                #     'sample_repo_1')
+
+repo_paths = ('sample_repo_1', )
+                'sample_repo_2',
+                    'sample_repo_3')
 
 PULL_UPDATED = "Already up to date"
 
 def execute_pull(repo_path, password=None):
     print(f"********* Starting pull: {repo_path} *****************")
     args = ['git', 'pull']
-    # if password:
-    #     args.append('-input')
-    #     args.append(password)
+    if password:
+        args.append('-input')
+        args.append(password)
 
-    return str(check_output(args, stdin=PIPE))
+    return str(Popen(args, stdin=PIPE))
     
 def execute_gradle_build(repo_path):
     print("********* Starting gradle clean build: {repo_path} *****************")
