@@ -13,6 +13,7 @@ repo_paths = ('sample_1',
 PULL_UPDATED = "Already up to date"
 M2_PATH = ".m2/"
 
+
 def execute_pull(repo_path):
     print(f"********* Starting pull: {repo_path} *****************")
     args = ['git', 'pull']
@@ -33,6 +34,37 @@ def execute_gradle_build(repo_path, build_full):
     print('Process finished successfully.')
 
 
+class CommandArgsProcessor(object):
+
+    def __init__(self):
+        self._parser = argparse.ArgumentParser(\
+                                    description='Options to build projects!')
+        self._parser.add_argument('--build-full', \
+                        '-b', \
+                        action='store_true', \
+                        help="Execute the full gradlew clean build process")
+
+        self._parser.add_argument('--clean-bss-m2', \
+                        '-c', \
+                        action='store_true', \
+                        help="Delete all files from m2 folder")
+    
+    def get_args(self):
+        return self._parser.parse_args()
+
+    def delete_m2(self, m2_path):
+        if get_command_args().clean_bss_m2:
+            absolute_m2_path = Path.joinpath(Path.home(), m2_path)
+
+            if absolute_m2_path.is_dir():
+                try:
+                    shutil.rmtree(absolute_m2_path)
+                except OSError:
+                    print(f'Error: process to delete folders and files from \
+                            {absolute_m2_path} has failed.')
+        
+
+
 def get_command_args():
     parser = argparse.ArgumentParser(description='Options to build projects!')
     parser.add_argument('--build-full', \
@@ -47,22 +79,10 @@ def get_command_args():
     return parser.parse_args()
 
 
-def delete_bss_m2():
-    bss_m2_path = Path.joinpath(Path.home(), M2_PATH)
-
-    if bss_m2_path.is_dir():
-        try:
-            shutil.rmtree(bss_m2_path)
-        except OSError:
-            print(f'Error: process to delete folders and files from \
-                    {bss_m2_path} has failed.')
-
-
 if __name__ == "__main__":
     print("********* Starting Repo Update *****************")
-    args = get_command_args()
-    if args.clean_bss_m2:
-        delete_bss_m2()
+    
+    CommandArgsProcessor().delete_m2(M2_PATH)
 
     for repo in repo_paths:
         if os.path.isdir(repo):
