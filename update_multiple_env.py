@@ -2,6 +2,8 @@
 import os
 import argparse
 import subprocess
+import shutil
+from pathlib import Path
 
 
 repo_paths = ('sample_1', 
@@ -9,6 +11,7 @@ repo_paths = ('sample_1',
                     'sample_3')
 
 PULL_UPDATED = "Already up to date"
+M2_PATH = ".m2/"
 
 def execute_pull(repo_path):
     print(f"********* Starting pull: {repo_path} *****************")
@@ -36,12 +39,30 @@ def get_command_args():
                         '-b', \
                         action='store_true', \
                         help="Execute the full gradlew clean build process")
+
+    parser.add_argument('--clean-bss-m2', \
+                        '-c', \
+                        action='store_true', \
+                        help="Delete all files from m2 folder")
     return parser.parse_args()
+
+
+def delete_bss_m2():
+    bss_m2_path = Path.joinpath(Path.home(), M2_PATH)
+
+    if bss_m2_path.is_dir():
+        try:
+            shutil.rmtree(bss_m2_path)
+        except OSError:
+            print(f'Error: process to delete folders and files from \
+                    {bss_m2_path} has failed.')
 
 
 if __name__ == "__main__":
     print("********* Starting Repo Update *****************")
     args = get_command_args()
+    if args.clean_bss_m2:
+        delete_bss_m2()
 
     for repo in repo_paths:
         if os.path.isdir(repo):
