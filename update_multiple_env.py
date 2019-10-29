@@ -4,9 +4,9 @@ import argparse
 import subprocess
 
 
-repo_paths = ('com.ericsson.bss.ael.aep', 
-                'com.ericsson.bss.ael.aep.plugins',
-                    'com.ericsson.bss.ael.bae')
+repo_paths = ('sample_1', 
+                'sample_2',
+                    'sample_3')
 
 PULL_UPDATED = "Already up to date"
 
