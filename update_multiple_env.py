@@ -7,11 +7,11 @@ from pathlib import Path
 
 
 class Const(object):
-    M2_PATH = ".m2/"
+    M2_PATH = ".m2/repository/com/ericsson/bss"
     PULL_UPDATED = "Already up to date"
-    REPO_PATHS = ('sample_1', 
-                    'sample_2',
-                        'sample_3')
+    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
+                    'com.ericsson.bss.ael.aep.plugins',
+                        'com.ericsson.bss.ael.bae')
 
 
 class HandlerProcess(object):
@@ -68,6 +68,12 @@ class CommandArgsProcessor(object):
         parser.add_argument('-d', \
                         '--repos-directory', \
                         help='Add your repositories absolute path.')
+
+        parser.add_argument('-m', \
+                        '--show-menu', \
+                        action='store_true', \
+                        help='Show the CLI User Menu thats allow to choice '\
+                            'wich repositories to update.')
         self._parsed_args = parser.parse_args()
     
     def is_build_full(self):
@@ -75,6 +81,9 @@ class CommandArgsProcessor(object):
 
     def is_to_clean_m2(self):
         return self._parsed_args.clean_m2
+
+    def is_to_show_menu(self):
+        return self._parsed_args.show_menu
 
     @property
     def repos_directory(self):
@@ -115,6 +124,19 @@ class PathHelper(object):
             return Const.REPO_PATHS
 
 
+class CliInterface(object):
+
+    def show_main_menu(self):
+        print('#########################################################')
+        print('########## Build Repos - Choice Your Options ############')
+        print('#########################################################')
+        print(\
+            'You can select more than one options adding space between them:')
+        raw_resp = input('1 - AEP \n2 - Plugins \n3 - BAE \n4 - Jive \nR: ')
+        resp = raw_resp.split()
+        return resp
+
+
 if __name__ == "__main__":
     print("********* Starting Repo Update *****************")
     
@@ -122,14 +144,18 @@ if __name__ == "__main__":
     
     is_build_full = cmd_args_proc.is_to_clean_m2()
     is_clean_m2 = cmd_args_proc.is_to_clean_m2()
+    is_show_menu = cmd_args_proc.is_to_show_menu()
     
     if is_clean_m2:
         PathHelper.delete_m2(Const.M2_PATH)
+
+    if is_show_menu:
+        print(CliInterface().show_main_menu())
     
-    repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
-    if len(repo_paths) > 0:
-        handler = HandlerProcess(repo_paths)
-        handler.start_process(is_clean_m2, is_build_full)
-    else:
-        print(">>>>>> Failed to read the repositories directories.\n"+
-                ">>>>>> Please make sure you had cloned all the repositories")
+    # repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
+    # if len(repo_paths) > 0:
+    #     handler = HandlerProcess(repo_paths)
+    #     handler.start_process(is_clean_m2, is_build_full)
+    # else:
+    #     print(">>>>>> Failed to read the repositories directories.\n"+
+    #             ">>>>>> Please make sure you had cloned all the repositories")
