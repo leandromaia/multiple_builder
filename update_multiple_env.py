@@ -11,7 +11,9 @@ class Const(object):
     PULL_UPDATED = "Already up to date"
     REPO_PATHS = ('com.ericsson.bss.ael.aep', 
                     'com.ericsson.bss.ael.aep.plugins',
-                        'com.ericsson.bss.ael.bae')
+                        'com.ericsson.bss.ael.bae',
+                            'com.ericsson.bss.ael.dae',
+                                'com.ericsson.bss.ael.jive')
 
 
 class HandlerProcess(object):
@@ -126,13 +128,25 @@ class PathHelper(object):
 
 class CliInterface(object):
 
-    def show_main_menu(self):
+    def _parse_repo_names(self, repo_paths):
+        repo_names = [r.split('.')[-1].upper() for r in repo_paths]
+        return repo_names
+
+    def show_main_menu(self, repo_paths):
+        names = self._parse_repo_names(repo_paths)
+
+        menu = str()
+        for index in range(0, len(names)):
+            menu = menu + f'{index + 1} - {names[index]}\n'
+        else:
+            menu = menu + 'R: '
+        
         print('#########################################################')
         print('########## Build Repos - Choice Your Options ############')
         print('#########################################################')
         print(\
             'You can select more than one options adding space between them:')
-        raw_resp = input('1 - AEP \n2 - Plugins \n3 - BAE \n4 - Jive \nR: ')
+        raw_resp = input(menu)
         resp = raw_resp.split()
         return resp
 
@@ -149,11 +163,11 @@ if __name__ == "__main__":
     if is_clean_m2:
         PathHelper.delete_m2(Const.M2_PATH)
 
-    if is_show_menu:
-        print(CliInterface().show_main_menu())
-    
-    # repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
-    # if len(repo_paths) > 0:
+    repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
+    if len(repo_paths) > 0:
+        if is_show_menu:
+            CliInterface().show_main_menu(repo_paths)
+
     #     handler = HandlerProcess(repo_paths)
     #     handler.start_process(is_clean_m2, is_build_full)
     # else:
