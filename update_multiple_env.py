@@ -13,7 +13,8 @@ class Const(object):
                     'com.ericsson.bss.ael.aep.plugins',
                         'com.ericsson.bss.ael.bae',
                             'com.ericsson.bss.ael.dae',
-                                'com.ericsson.bss.ael.jive')
+                                'com.ericsson.bss.ael.jive',
+                                    'com.ericsson.bss.ael.aep.sdk')
 
 
 class HandlerProcess(object):
@@ -92,6 +93,22 @@ class CommandArgsProcessor(object):
         return self._parsed_args.repos_directory
 
 
+class Repository(object):
+    _initial = None
+
+    def __init__(self, absolute_path):
+        self._absolute_path = absolute_path
+
+    @property
+    def repo_initial(self):
+        if not self._initial:
+            self._initial = self._absolute_path.split('.')[-1].upper()
+        return self._initial
+
+    def __str__(self):
+        return self._initial
+
+
 class PathHelper(object):
     
     @staticmethod
@@ -132,8 +149,8 @@ class CliInterface(object):
         repo_names = [r.split('.')[-1].upper() for r in repo_paths]
         return repo_names
 
-    def show_main_menu(self, repo_paths):
-        names = self._parse_repo_names(repo_paths)
+    def ask_desired_repos(self, list_repo):
+        names = [r.repo_initial for r in list_repo]
 
         menu = str()
         for index in range(0, len(names)):
@@ -147,8 +164,15 @@ class CliInterface(object):
         print(\
             'You can select more than one options adding space between them:')
         raw_resp = input(menu)
-        resp = raw_resp.split()
-        return resp
+
+        choices = [m for r in raw_resp.split() \
+                        for m in menu.split('\n') if r in m]
+       
+        repos_selected = [repo for repo in list_repo \
+                                for c in choices \
+                                    if c.endswith(repo.repo_initial)]
+        
+        return repos_selected
 
 
 if __name__ == "__main__":
@@ -164,12 +188,15 @@ if __name__ == "__main__":
         PathHelper.delete_m2(Const.M2_PATH)
 
     repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
+
+    list_repo = [Repository(r) for r in repo_paths]
+
     if len(repo_paths) > 0:
         if is_show_menu:
-            CliInterface().show_main_menu(repo_paths)
+            CliInterface().ask_desired_repos(list_repo)
 
-    #     handler = HandlerProcess(repo_paths)
-    #     handler.start_process(is_clean_m2, is_build_full)
-    # else:
-    #     print(">>>>>> Failed to read the repositories directories.\n"+
-    #             ">>>>>> Please make sure you had cloned all the repositories")
+        handler = HandlerProcess(repo_paths)
+        handler.start_process(is_clean_m2, is_build_full)
+    else:
+        print(">>>>>> Failed to read the repositories directories.\n"+
+                ">>>>>> Please make sure you had cloned all the repositories")
