@@ -18,7 +18,7 @@ class Const(object):
     MAVEN_COMMAND = ['mvn', '-install']
     GRADLE_FULL = ['gradlew', 'clean', 'build']
     GRADLE_SKIP = GRADLE_FULL + \
-                            ['-x', 'test', '-x', 'check', '-x', '-javadoc']
+                        ['-x', 'test', '-x', 'check', '-x', '-javadoc']
 
 
 class HandlerProcess(object):
@@ -36,9 +36,17 @@ class HandlerProcess(object):
                 print(f'The {repo.repo_initial} its already up to date!')
 
     def update_repository(self, repo_path):
+        print('************ Reset repository ****************')
+        args_reset = ['git', 'reset', '--hard', 'origin/master']
+        self._wrapper_run_process(args_reset, repo_path)
+        
+        print('************ Checkout to branch MASTER ****************')
+        args_reset = ['git', 'checkout', 'master']
+        self._wrapper_run_process(args_reset, repo_path)
+        
         print(f"********* Starting pull: {repo_path} *****************")
-        args = ['git', 'pull']
-        return self._wrapper_run_process(args, repo_path)
+        args_pull = ['git', 'pull']
+        return self._wrapper_run_process(args_pull, repo_path)
 
     def build_repository(self, repo, build_full):
         print(f"********* Starting gradle clean build: {repo._absolute_path} *********")
@@ -48,10 +56,11 @@ class HandlerProcess(object):
         print("********* Updating finished successfully!!! *****************")
 
     def _wrapper_run_process(self, command, path):
-        print(f'*********************** wrapper: {command} - {path}')
         process = subprocess.run(command, shell=True, check=True, \
                                     cwd=path, universal_newlines=True)
+        print(f'The command: {command} to repository: {path} has executed successfully')
         return process.stdout
+
 
 
 class CommandArgsProcessor(object):
@@ -194,7 +203,7 @@ class CliInterface(object):
             for awser in user_awser:
                 if awser not in indexes:
                     print(f">>>>> Invalid choice: {awser} <<<<<<\
-                                \n\tPlease choose a valid option\n\n")
+                                \n\tPlease choose a valid option\n")
                     break
             else:
                 is_to_ask = False
