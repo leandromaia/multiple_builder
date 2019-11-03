@@ -15,6 +15,10 @@ class Const(object):
                             'com.ericsson.bss.ael.dae',
                                 'com.ericsson.bss.ael.jive',
                                     'com.ericsson.bss.ael.aep.sdk')
+    MAVEN_COMMAND = ['mvn', '-install']
+    GRADLE_FULL = ['gradlew', 'clean', 'build']
+    GRADLE_SKIP = GRADLE_FULL + \
+                            ['-x', 'test', '-x', 'check', '-x', '-javadoc']
 
 
 class HandlerProcess(object):
@@ -24,33 +28,30 @@ class HandlerProcess(object):
 
     def start_process(self, has_deleted_m2, build_full=False):
         for repo in self._repositories:
-            if os.path.isdir(repo._absolute_path):
-                pull_result = self.execute_pull(repo._absolute_path)
-                
-                if Const.PULL_UPDATED not in pull_result or has_deleted_m2:
-                    self.execute_gradle_build(repo, build_full)
-                else:
-                    print(f'The {repo.repo_initial} its already up to date!')
+            pull_result = self.update_repository(repo._absolute_path)
+            
+            if Const.PULL_UPDATED not in pull_result or has_deleted_m2:
+                self.build_repository(repo, build_full)
             else:
-                print(f"The directory {repo._absolute_path} doesn't exist!!!")
+                print(f'The {repo.repo_initial} its already up to date!')
 
-    def execute_pull(self, repo_path):
+    def update_repository(self, repo_path):
         print(f"********* Starting pull: {repo_path} *****************")
         args = ['git', 'pull']
-        process = subprocess.run(args, check=True, cwd=repo_path, \
-                            stdout=subprocess.PIPE, universal_newlines=True)
-        return process.stdout
+        return self._wrapper_run_process(args, repo_path)
 
-    def execute_gradle_build(self, repo_path, build_full):
-        print(f"********* Starting gradle clean build: {repo_path} *********")
+    def build_repository(self, repo, build_full):
+        print(f"********* Starting gradle clean build: {repo._absolute_path} *********")
         
-        args = ['gradlew', 'clean', 'build']
-        if not build_full:
-            args = args + ['-x', 'test', '-x', 'check', '-x', '-javadoc']
-        
-        subprocess.run(args, shell=True, check=True, \
-                                    cwd=repo_path, universal_newlines=True)
+        self._wrapper_run_process(repo.get_build_command(build_full), \
+                                                        repo._absolute_path)
         print("********* Updating finished successfully!!! *****************")
+
+    def _wrapper_run_process(self, command, path):
+        print(f'*********************** wrapper: {command} - {path}')
+        process = subprocess.run(command, shell=True, check=True, \
+                                    cwd=path, universal_newlines=True)
+        return process.stdout
 
 
 class CommandArgsProcessor(object):
@@ -95,6 +96,7 @@ class CommandArgsProcessor(object):
 
 class Repository(object):
     _initial = None
+    _maven_types = ('JIVE', )
 
     def __init__(self, absolute_path):
         if os.path.isdir(absolute_path):
@@ -109,6 +111,15 @@ class Repository(object):
             self._initial = self._absolute_path.split('.')[-1].upper()
         return self._initial
 
+    def get_build_command(self, is_build_full):
+        if self._initial in self._maven_types:
+            return Const.MAVEN_COMMAND
+
+        if is_build_full:
+            return Const.GRADLE_FULL
+        else:
+            return Const.GRADLE_SKIP 
+    
     def __str__(self):
         return self._initial
 
@@ -179,11 +190,11 @@ class CliInterface(object):
             print(\
                 'You can select more than one options adding space between them:')
             user_awser = input(menu).split()
-            
-            for r in user_awser:
-                if r not in indexes:
-                    print(f">>>>> Invalid choice: {r} <<<<<<\
-                                \n\tPlease choose a valid option")
+
+            for awser in user_awser:
+                if awser not in indexes:
+                    print(f">>>>> Invalid choice: {awser} <<<<<<\
+                                \n\tPlease choose a valid option\n\n")
                     break
             else:
                 is_to_ask = False
@@ -195,7 +206,7 @@ if __name__ == "__main__":
     
     cmd_args_proc = CommandArgsProcessor()
     
-    is_build_full = cmd_args_proc.is_to_clean_m2()
+    is_build_full = cmd_args_proc.is_build_full()
     is_clean_m2 = cmd_args_proc.is_to_clean_m2()
     is_show_menu = cmd_args_proc.is_to_show_menu()
     
@@ -209,7 +220,7 @@ if __name__ == "__main__":
     if len(repo_paths) > 0:
         if is_show_menu:
             list_repo = CliInterface().ask_desired_repos(list_repo)
-            print(len(list_repo))
+
         handler = HandlerProcess(list_repo)
         handler.start_process(is_clean_m2, is_build_full)
     else:
