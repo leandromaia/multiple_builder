@@ -19,20 +19,20 @@ class Const(object):
 
 class HandlerProcess(object):
 
-    def __init__(self, repo_paths):
-        self.repo_paths = repo_paths
+    def __init__(self, repositories):
+        self._repositories = repositories
 
     def start_process(self, has_deleted_m2, build_full=False):
-        for repo in self.repo_paths:
-            if os.path.isdir(repo):
-                pull_result = self.execute_pull(repo)
+        for repo in self._repositories:
+            if os.path.isdir(repo._absolute_path):
+                pull_result = self.execute_pull(repo._absolute_path)
                 
                 if Const.PULL_UPDATED not in pull_result or has_deleted_m2:
                     self.execute_gradle_build(repo, build_full)
                 else:
-                    print(f'The {repo} its already up to date!')
+                    print(f'The {repo.repo_initial} its already up to date!')
             else:
-                print(f"The directory {repo} doesn't exist!!!")
+                print(f"The directory {repo._absolute_path} doesn't exist!!!")
 
     def execute_pull(self, repo_path):
         print(f"********* Starting pull: {repo_path} *****************")
@@ -97,7 +97,11 @@ class Repository(object):
     _initial = None
 
     def __init__(self, absolute_path):
-        self._absolute_path = absolute_path
+        if os.path.isdir(absolute_path):
+            self._absolute_path = absolute_path
+        else:
+            print(f"The directory {absolute_path} doesn't exist!!!")
+            raise OSError(f"The directory {absolute_path} doesn't exist!!!")
 
     @property
     def repo_initial(self):
@@ -130,15 +134,11 @@ class PathHelper(object):
     @staticmethod
     def fetch_repo_paths(root_path):
         if root_path:
-            if os.path.isdir(root_path):
-                all = [f.path for f in os.scandir(root_path) if f.is_dir()] 
-                valid_paths = [a for a in all \
-                                for r in Const.REPO_PATHS \
-                                    if a.endswith(r)]
-                return valid_paths
-            else:
-                print(f"Invalid path: {root_path}")
-                return list()
+            all = [f.path for f in os.scandir(root_path) if f.is_dir()] 
+            valid_paths = [a for a in all \
+                            for r in Const.REPO_PATHS \
+                                if a.endswith(r)]
+            return valid_paths
         else:
             return Const.REPO_PATHS
 
@@ -153,26 +153,41 @@ class CliInterface(object):
         names = [r.repo_initial for r in list_repo]
 
         menu = str()
-        for index in range(0, len(names)):
-            menu = menu + f'{index + 1} - {names[index]}\n'
+        indexes = list()
+        for i in range(0, len(names)):
+            index = str(i + 1)
+            menu = menu + f'{index} - {names[i]}\n'
+            indexes.append(index)
         else:
             menu = menu + 'R: '
-        
+
+        user_awser = self._show_repo_menu(menu, indexes)
+
+        choices = set([m for r in user_awser \
+                        for m in menu.split('\n') if r in m])
+
+        return [repo for repo in list_repo \
+                        for c in choices \
+                            if c.endswith(repo.repo_initial)]
+
+    def _show_repo_menu(self, menu, indexes):
+        is_to_ask = True       
         print('#########################################################')
         print('########## Build Repos - Choice Your Options ############')
         print('#########################################################')
-        print(\
-            'You can select more than one options adding space between them:')
-        raw_resp = input(menu)
-
-        choices = [m for r in raw_resp.split() \
-                        for m in menu.split('\n') if r in m]
-       
-        repos_selected = [repo for repo in list_repo \
-                                for c in choices \
-                                    if c.endswith(repo.repo_initial)]
-        
-        return repos_selected
+        while is_to_ask:
+            print(\
+                'You can select more than one options adding space between them:')
+            user_awser = input(menu).split()
+            
+            for r in user_awser:
+                if r not in indexes:
+                    print(f">>>>> Invalid choice: {r} <<<<<<\
+                                \n\tPlease choose a valid option")
+                    break
+            else:
+                is_to_ask = False
+        return user_awser
 
 
 if __name__ == "__main__":
@@ -193,9 +208,9 @@ if __name__ == "__main__":
 
     if len(repo_paths) > 0:
         if is_show_menu:
-            CliInterface().ask_desired_repos(list_repo)
-
-        handler = HandlerProcess(repo_paths)
+            list_repo = CliInterface().ask_desired_repos(list_repo)
+            print(len(list_repo))
+        handler = HandlerProcess(list_repo)
         handler.start_process(is_clean_m2, is_build_full)
     else:
         print(">>>>>> Failed to read the repositories directories.\n"+
