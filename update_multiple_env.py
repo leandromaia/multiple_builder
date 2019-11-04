@@ -41,8 +41,8 @@ class HandlerProcess(object):
         self._wrapper_run_process(args_reset, repo_path)
         
         print('************ Checkout to branch MASTER ****************')
-        args_reset = ['git', 'checkout', 'master']
-        self._wrapper_run_process(args_reset, repo_path)
+        args_checkout = ['git', 'checkout', 'master']
+        self._wrapper_run_process(args_checkout, repo_path)
         
         print(f"********* Starting pull: {repo_path} *****************")
         args_pull = ['git', 'pull']
@@ -154,14 +154,13 @@ class PathHelper(object):
     
     @staticmethod
     def fetch_repo_paths(root_path):
-        if root_path:
-            all = [f.path for f in os.scandir(root_path) if f.is_dir()] 
-            valid_paths = [a for a in all \
-                            for r in Const.REPO_PATHS \
-                                if a.endswith(r)]
-            return valid_paths
-        else:
-            return Const.REPO_PATHS
+        if not root_path:
+            root_path = os.getcwd()
+
+        all = [f.path for f in os.scandir(root_path) if f.is_dir()]
+        valid_paths = [a for a in all \
+                            for r in Const.REPO_PATHS if a.endswith(r)]
+        return valid_paths
 
 
 class CliInterface(object):
