@@ -165,10 +165,6 @@ class PathHelper(object):
 
 class CliInterface(object):
 
-    def _parse_repo_names(self, repo_paths):
-        repo_names = [r.split('.')[-1].upper() for r in repo_paths]
-        return repo_names
-
     def ask_desired_repos(self, list_repo):
         names = [r.repo_initial for r in list_repo]
 
@@ -208,6 +204,18 @@ class CliInterface(object):
             else:
                 is_to_ask = False
         return user_awser
+    
+    def ask_is_to_reset(self):
+        while True:
+            user_awser = input('Do you want to reset your repositories branch, '+\
+                                'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\n'+\
+                                    '>>>>>> WARNING: Your stash will be also clean.\nR: ')
+            if user_awser == "1":
+                return True
+            elif user_awser == "2":
+                return False
+            else:
+                print(f"\n>>>>> Invalid choice: {user_awser} <<<<<<\n")
 
 
 if __name__ == "__main__":
@@ -228,7 +236,9 @@ if __name__ == "__main__":
 
     if len(repo_paths) > 0:
         if is_show_menu:
-            list_repo = CliInterface().ask_desired_repos(list_repo)
+            cli = CliInterface()
+            list_repo = cli.ask_desired_repos(list_repo)
+            is_to_reset = cli.ask_is_to_reset()
 
         handler = HandlerProcess(list_repo)
         handler.start_process(is_clean_m2, is_build_full)
