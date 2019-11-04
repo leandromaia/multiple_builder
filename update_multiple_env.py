@@ -15,7 +15,7 @@ class Const(object):
                             'com.ericsson.bss.ael.dae',
                                 'com.ericsson.bss.ael.jive',
                                     'com.ericsson.bss.ael.aep.sdk')
-    MAVEN_COMMAND = ['mvn', '-install']
+    MAVEN_COMMAND = ['mvn', 'clean','install']
     GRADLE_FULL = ['gradlew', 'clean', 'build']
     GRADLE_SKIP = GRADLE_FULL + \
                         ['-x', 'test', '-x', 'check', '-x', '-javadoc']
@@ -49,15 +49,16 @@ class HandlerProcess(object):
         return self._wrapper_run_process(args_pull, repo_path)
 
     def build_repository(self, repo, build_full):
-        print(f"********* Starting gradle clean build: {repo._absolute_path} *********")
+        print(f"********* Starting build: {repo._absolute_path} *********")
         
         self._wrapper_run_process(repo.get_build_command(build_full), \
                                                         repo._absolute_path)
-        print("********* Updating finished successfully!!! *****************")
+        print("********* Build finished successfully!!! *****************")
 
     def _wrapper_run_process(self, command, path):
         process = subprocess.run(command, shell=True, check=True, \
-                                    cwd=path, universal_newlines=True)
+                                    stdout=subprocess.PIPE, cwd=path, \
+                                        universal_newlines=True)
         print(f'The command: {command} to repository: {path} has executed successfully')
         return process.stdout
 
