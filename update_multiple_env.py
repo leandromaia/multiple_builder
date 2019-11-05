@@ -18,7 +18,7 @@ class Const(object):
     MAVEN_COMMAND = ['mvn', 'clean','install']
     GRADLE_FULL = ['gradlew', 'clean', 'build']
     GRADLE_SKIP = GRADLE_FULL + \
-                        ['-x', 'test', '-x', 'check', '-x', '-javadoc']
+                        ['-x', 'test', '-x', 'check', '-x', 'javadoc']
 
 
 class HandlerProcess(object):
@@ -26,19 +26,22 @@ class HandlerProcess(object):
     def __init__(self, repositories):
         self._repositories = repositories
 
-    def start_process(self, has_deleted_m2, build_full=False):
+    def start_process(self, has_deleted_m2, \
+                                build_full=False, is_to_reset=False):
         for repo in self._repositories:
-            pull_result = self.update_repository(repo._absolute_path)
+            pull_result = self._update_repository(\
+                                        repo._absolute_path, is_to_reset)
             
             if Const.PULL_UPDATED not in pull_result or has_deleted_m2:
-                self.build_repository(repo, build_full)
+                self._build_repository(repo, build_full)
             else:
                 print(f'The {repo.repo_initial} its already up to date!')
 
-    def update_repository(self, repo_path):
-        print('************ Reset repository ****************')
-        args_reset = ['git', 'reset', '--hard', 'origin/master']
-        self._wrapper_run_process(args_reset, repo_path)
+    def _update_repository(self, repo_path, is_to_reset):
+        if is_to_reset:
+            print('************ Reset repository ****************')
+            args_reset = ['git', 'reset', '--hard', 'origin/master']
+            self._wrapper_run_process(args_reset, repo_path)
         
         print('************ Checkout to branch MASTER ****************')
         args_checkout = ['git', 'checkout', 'master']
@@ -48,11 +51,11 @@ class HandlerProcess(object):
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
 
-    def build_repository(self, repo, build_full):
+    def _build_repository(self, repo, build_full):
         print(f"********* Starting build: {repo._absolute_path} *********")
         
-        self._wrapper_run_process(repo.get_build_command(build_full), \
-                                                        repo._absolute_path)
+        build_command = repo.get_build_command(build_full)
+        self._wrapper_run_process(build_command, repo._absolute_path)
         print("********* Build finished successfully!!! *****************")
 
     def _wrapper_run_process(self, command, path):
@@ -209,7 +212,7 @@ class CliInterface(object):
         while True:
             user_awser = input('Do you want to reset your repositories branch, '+\
                                 'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\n'+\
-                                    '>>>>>> WARNING: Your stash will be also clean.\nR: ')
+                                    '>>>>>> WARNING: Your stash will be also be cleaned.\nR: ')
             if user_awser == "1":
                 return True
             elif user_awser == "2":
@@ -241,7 +244,7 @@ if __name__ == "__main__":
             is_to_reset = cli.ask_is_to_reset()
 
         handler = HandlerProcess(list_repo)
-        handler.start_process(is_clean_m2, is_build_full)
+        handler.start_process(is_clean_m2, is_build_full, is_to_reset)
     else:
         print(">>>>>> Failed to read the repositories directories.\n"+
                 ">>>>>> Please make sure you had cloned all the repositories")
