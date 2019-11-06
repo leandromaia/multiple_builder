@@ -26,30 +26,42 @@ class HandlerProcess(object):
     def __init__(self, repositories):
         self._repositories = repositories
 
-    def start_process(self, has_deleted_m2, \
-                                build_full=False, is_to_reset=False):
+    def start_process(self, has_deleted_m2, build_full=False, \
+                                    is_to_reset=False, from_menu=False):
         for repo in self._repositories:
             pull_result = self._update_repository(\
                                         repo._absolute_path, is_to_reset)
             
-            if Const.PULL_UPDATED not in pull_result or has_deleted_m2:
+            if Const.PULL_UPDATED not in pull_result \
+                                or has_deleted_m2 or from_menu:
                 self._build_repository(repo, build_full)
             else:
                 print(f'The {repo.repo_initial} its already up to date!')
 
     def _update_repository(self, repo_path, is_to_reset):
         if is_to_reset:
-            print('************ Reset repository ****************')
-            args_reset = ['git', 'reset', '--hard', 'origin/master']
-            self._wrapper_run_process(args_reset, repo_path)
-        
-        print('************ Checkout to branch MASTER ****************')
-        args_checkout = ['git', 'checkout', 'master']
-        self._wrapper_run_process(args_checkout, repo_path)
+            self._update_with_reset(repo_path)
+        else:
+            print('************ Checkout to branch MASTER ****************')
+            args_checkout = ['git', 'checkout', 'master']
+            self._wrapper_run_process(args_checkout, repo_path)
         
         print(f"********* Starting pull: {repo_path} *****************")
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
+
+    def _update_with_reset(self, repo_path):
+        print('************ Clean repository ****************')
+        args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
+        self._wrapper_run_process(args_reset, repo_path)
+
+        print('************ Checkout to branch MASTER ****************')
+        args_checkout = ['git', 'checkout', 'master']
+        self._wrapper_run_process(args_checkout, repo_path)
+        
+        print('************ Reset repository ****************')
+        args_reset = ['git', 'reset', '--hard', 'origin/master']
+        self._wrapper_run_process(args_reset, repo_path)
 
     def _build_repository(self, repo, build_full):
         print(f"********* Starting build: {repo._absolute_path} *********")
@@ -211,8 +223,7 @@ class CliInterface(object):
     def ask_is_to_reset(self):
         while True:
             user_awser = input('Do you want to reset your repositories branch, '+\
-                                'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\n'+\
-                                    '>>>>>> WARNING: Your stash will be also be cleaned.\nR: ')
+                                'using "git reset --hard <<branch name >>":\n1 - Yes\n2')
             if user_awser == "1":
                 return True
             elif user_awser == "2":
@@ -229,9 +240,6 @@ if __name__ == "__main__":
     is_build_full = cmd_args_proc.is_build_full()
     is_clean_m2 = cmd_args_proc.is_to_clean_m2()
     is_show_menu = cmd_args_proc.is_to_show_menu()
-    
-    if is_clean_m2:
-        PathHelper.delete_m2(Const.M2_PATH)
 
     repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
@@ -242,9 +250,13 @@ if __name__ == "__main__":
             cli = CliInterface()
             list_repo = cli.ask_desired_repos(list_repo)
             is_to_reset = cli.ask_is_to_reset()
+        
+        if is_clean_m2:
+            PathHelper.delete_m2(Const.M2_PATH)
 
         handler = HandlerProcess(list_repo)
-        handler.start_process(is_clean_m2, is_build_full, is_to_reset)
+        handler.start_process(is_clean_m2, is_build_full, \
+                                        is_to_reset, is_show_menu)
     else:
         print(">>>>>> Failed to read the repositories directories.\n"+
                 ">>>>>> Please make sure you had cloned all the repositories")
