@@ -19,6 +19,12 @@ class Const(object):
     GRADLE_FULL = ['gradlew', 'clean', 'build']
     GRADLE_SKIP = GRADLE_FULL + \
                         ['-x', 'test', '-x', 'check', '-x', 'javadoc']
+    BUILD_CMDS = {
+        1: 'gradlew clean build',
+        2: 'gradlew clean build -x test -x check -x javadoc',
+        3: 'gradlew clean jar',
+        4: 'gradlew clean install'
+    }
 
 
 class HandlerProcess(object):
@@ -183,14 +189,7 @@ class CliInterface(object):
     def ask_desired_repos(self, list_repo):
         names = [r.repo_initial for r in list_repo]
 
-        menu = str()
-        indexes = list()
-        for i in range(0, len(names)):
-            index = str(i + 1)
-            menu = menu + f'{index} - {names[i]}\n'
-            indexes.append(index)
-        else:
-            menu = menu + 'R: '
+        menu, indexes = self._build_menu_options(names)
 
         user_awser = self._show_repo_menu(menu, indexes)
 
@@ -200,6 +199,17 @@ class CliInterface(object):
         return [repo for repo in list_repo \
                         for c in choices \
                             if c.endswith(repo.repo_initial)]
+
+    def _build_menu_options(self, raw_options):
+        menu = str()
+        indexes = list()
+        for i in range(0, len(raw_options)):
+            index = str(i + 1)
+            menu = menu + f'{index} - {raw_options[i]}\n'
+            indexes.append(index)
+        else:
+            menu = menu + 'R: '
+        return menu, indexes
 
     def _show_repo_menu(self, menu, indexes):
         is_to_ask = True       
@@ -223,13 +233,17 @@ class CliInterface(object):
     def ask_is_to_reset(self):
         while True:
             user_awser = input('Do you want to reset your repositories branch, '+\
-                                'using "git reset --hard <<branch name >>":\n1 - Yes\n2')
+                                'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\nR:')
             if user_awser == "1":
                 return True
             elif user_awser == "2":
                 return False
             else:
                 print(f"\n>>>>> Invalid choice: {user_awser} <<<<<<\n")
+
+    # def ask_type_gradle_build(self):
+    #     while True:
+            
 
 
 if __name__ == "__main__":
@@ -246,6 +260,7 @@ if __name__ == "__main__":
     list_repo = [Repository(r) for r in repo_paths]
 
     if len(repo_paths) > 0:
+        is_to_reset = False
         if is_show_menu:
             cli = CliInterface()
             list_repo = cli.ask_desired_repos(list_repo)
