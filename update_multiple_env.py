@@ -241,9 +241,23 @@ class CliInterface(object):
             else:
                 print(f"\n>>>>> Invalid choice: {user_awser} <<<<<<\n")
 
-    # def ask_type_gradle_build(self):
-    #     while True:
-            
+    def ask_type_gradle_build(self):
+        cmds = list(Const.BUILD_CMDS.values())
+
+        menu, indexes = self._build_menu_options(cmds)
+        return self._get_only_one_awser(menu, indexes)
+           
+    def _get_only_one_awser(self, menu, indexes):
+        user_awser = None
+        while True:
+            user_awser = input(menu)
+            if user_awser not in indexes:
+                    print(f">>>>> Invalid choice: {user_awser} <<<<<<\
+                                \n\tPlease choose a valid option\n")
+            else:
+                break
+        return user_awser
+
 
 
 if __name__ == "__main__":
@@ -263,15 +277,16 @@ if __name__ == "__main__":
         is_to_reset = False
         if is_show_menu:
             cli = CliInterface()
-            list_repo = cli.ask_desired_repos(list_repo)
-            is_to_reset = cli.ask_is_to_reset()
+            # list_repo = cli.ask_desired_repos(list_repo)
+            # is_to_reset = cli.ask_is_to_reset()
+            print(cli.ask_type_gradle_build())
         
-        if is_clean_m2:
-            PathHelper.delete_m2(Const.M2_PATH)
+    #     if is_clean_m2:
+    #         PathHelper.delete_m2(Const.M2_PATH)
 
-        handler = HandlerProcess(list_repo)
-        handler.start_process(is_clean_m2, is_build_full, \
-                                        is_to_reset, is_show_menu)
-    else:
-        print(">>>>>> Failed to read the repositories directories.\n"+
-                ">>>>>> Please make sure you had cloned all the repositories")
+    #     handler = HandlerProcess(list_repo)
+    #     handler.start_process(is_clean_m2, is_build_full, \
+    #                                     is_to_reset, is_show_menu)
+    # else:
+    #     print(">>>>>> Failed to read the repositories directories.\n"+
+    #             ">>>>>> Please make sure you had cloned all the repositories")
