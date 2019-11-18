@@ -72,7 +72,8 @@ class HandlerProcess(object):
     def _build_repository(self, repo, build_full):
         print(f"********* Starting build: {repo._absolute_path} *********")
         
-        build_command = repo.get_build_command(build_full)
+        # build_command = repo.get_build_command(build_full)
+        build_command = repo.build_command
         self._wrapper_run_process(build_command, repo._absolute_path)
         print("********* Build finished successfully!!! *****************")
 
@@ -128,6 +129,7 @@ class CommandArgsProcessor(object):
 class Repository(object):
     _initial = None
     _maven_types = ('JIVE', )
+    _build_command = None
 
     def __init__(self, absolute_path):
         if os.path.isdir(absolute_path):
@@ -142,14 +144,21 @@ class Repository(object):
             self._initial = self._absolute_path.split('.')[-1].upper()
         return self._initial
 
-    def get_build_command(self, is_build_full):
+   
+    @property
+    def build_command(self):
         if self._initial in self._maven_types:
             return Const.MAVEN_COMMAND
+        return Const.GRADLE_FULL
+        # if is_build_full:
+        #     return Const.GRADLE_FULL
+        # else:
+        #     return Const.GRADLE_SKIP
 
-        if is_build_full:
-            return Const.GRADLE_FULL
-        else:
-            return Const.GRADLE_SKIP 
+    @build_command.setter
+    def build_command(self, cmd):
+        if self._initial not in self._maven_types:
+            self.__build_command = cmd
     
     def __str__(self):
         return self._initial
@@ -219,6 +228,7 @@ class CliInterface(object):
         while is_to_ask:
             print(\
                 'You can select more than one options adding space between them:')
+            
             user_awser = input(menu).split()
 
             for awser in user_awser:
@@ -231,15 +241,11 @@ class CliInterface(object):
         return user_awser
     
     def ask_is_to_reset(self):
-        while True:
-            user_awser = input('Do you want to reset your repositories branch, '+\
-                                'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\nR:')
-            if user_awser == "1":
-                return True
-            elif user_awser == "2":
-                return False
-            else:
-                print(f"\n>>>>> Invalid choice: {user_awser} <<<<<<\n")
+        menu = 'Do you want to reset your repositories branch, '+\
+                'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\nR:'
+        user_awser = self._get_only_one_awser(menu, ['1', '2'])
+
+        return True if user_awser == '1' else False
 
     def ask_type_gradle_build(self):
         cmds = list(Const.BUILD_CMDS.values())
@@ -257,7 +263,6 @@ class CliInterface(object):
             else:
                 break
         return user_awser
-
 
 
 if __name__ == "__main__":
@@ -278,9 +283,13 @@ if __name__ == "__main__":
         if is_show_menu:
             cli = CliInterface()
             # list_repo = cli.ask_desired_repos(list_repo)
-            # is_to_reset = cli.ask_is_to_reset()
-            print(cli.ask_type_gradle_build())
-        
+            is_to_reset = cli.ask_is_to_reset()
+            print(is_to_reset)
+            # gradle_cmd = cli.ask_type_gradle_build()
+
+            # for r in list_repo:
+            #     r.build_command = gradle_cmd
+            # import ipdb; ipdb.set_trace()
     #     if is_clean_m2:
     #         PathHelper.delete_m2(Const.M2_PATH)
 
