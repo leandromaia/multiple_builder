@@ -194,6 +194,8 @@ class PathHelper(object):
 
 
 class CliInterface(object):
+    MENU_OPTIONS_TO_RESET_ENV = [1, 2]
+    POSITIVE_OPTION_TO_RESET = 1
 
     def ask_desired_repos(self, list_repo):
         names = [r.repo_initial for r in list_repo]
@@ -204,72 +206,82 @@ class CliInterface(object):
 
         choices = set([m for r in user_awser \
                         for m in menu.split('\n') if r in m])
-
+        print(choices)
         return [repo for repo in list_repo \
                         for c in choices \
                             if c.endswith(repo.repo_initial)]
 
-    def _build_menu_options(self, raw_options):
-        menu = str()
-        indexes = list()
-        for i in range(0, len(raw_options)):
-            index = str(i + 1)
-            menu = menu + f'{index} - {raw_options[i]}\n'
-            indexes.append(index)
-        else:
-            menu = menu + 'R: '
-        return menu, indexes
-
-    def _show_repo_menu(self, menu, indexes):
-        is_to_ask = True       
-        print('#########################################################')
-        print('########## Build Repos - Choice Your Options ############')
-        print('#########################################################')
-        while is_to_ask:
-            print(\
-                'You can select more than one options adding space between them:')
-            
-            user_awser = input(menu).split()
-
-            for awser in user_awser:
-                if awser not in indexes:
-                    print(f">>>>> Invalid choice: {awser} <<<<<<\
-                                \n\tPlease choose a valid option\n")
-                    break
-            else:
-                is_to_ask = False
-        return user_awser
-    
     def ask_is_to_reset(self):
         menu = 'Do you want to reset your repositories branch, '+\
                 'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\nR:'
-        user_awser = self._get_only_one_awser(menu, ['1', '2'])
+        user_awser = self._get_only_one_awser(\
+                                        menu, self.MENU_OPTIONS_TO_RESET_ENV)
 
-        return True if user_awser == '1' else False
+        return True \
+                if int(user_awser) == self.POSITIVE_OPTION_TO_RESET \
+                    else False
 
     def ask_type_gradle_build(self):
         cmds = list(Const.BUILD_CMDS.values())
+        key_indexes = list(Const.BUILD_CMDS.keys())
 
-        menu, indexes = self._build_menu_options(cmds)
-        return self._get_only_one_awser(menu, indexes)
+        menu, indexes = self._build_menu_options(cmds, key_indexes)
+        
+        user_awser = int(self._get_only_one_awser(menu, indexes))
+        return Const.BUILD_CMDS.get(user_awser)
+
+    def _build_menu_options(self, raw_options, indexes=None):
+        menu = str()
+        list_index = None
+        if indexes:
+            list_index = indexes
+        else:
+            list_index = [* range(1, len(raw_options) + 1)]
+
+        for i in range(len(raw_options)):
+            menu = menu + f'{list_index[i]} - {raw_options[i]}\n'
+        else:
+            menu = menu + 'R: '
+        return menu, list_index
+
+    def _show_repo_menu(self, menu, indexes):      
+        print('#########################################################')
+        print('########## Build Repos - Choice Your Options ############')
+        print('#########################################################')
+        while True:
+            print(\
+                'You can select more than one options adding space between them:')
+            raw_awser = input(menu).split()
+
+            for awser in raw_awser:
+                if not self._is_valid_awser_by_indexes(awser, indexes):
+                    break
+            else:
+                return raw_awser
            
     def _get_only_one_awser(self, menu, indexes):
         user_awser = None
         while True:
             user_awser = input(menu)
-            if user_awser not in indexes:
-                    print(f">>>>> Invalid choice: {user_awser} <<<<<<\
-                                \n\tPlease choose a valid option\n")
-            else:
+            if self._is_valid_awser_by_indexes(user_awser, indexes):
                 break
         return user_awser
+    
+    def _is_valid_awser_by_indexes(self, awser, indexes):
+        try:
+            if int(awser) not in indexes:
+                raise ValueError("Failed - Not a valid index.")
+        except ValueError:
+            print(f">>>>> Invalid choice: {awser} <<<<<<\
+                            \n\tPlease choose a valid option\n")
+            return False
+        return True
 
 
 if __name__ == "__main__":
     print("********* Starting Repo Update *****************")
     
-    cmd_args_proc = CommandArgsProcessor()
-    
+    cmd_args_proc = CommandArgsProcessor()    
     is_build_full = cmd_args_proc.is_build_full()
     is_clean_m2 = cmd_args_proc.is_to_clean_m2()
     is_show_menu = cmd_args_proc.is_to_show_menu()
@@ -282,14 +294,13 @@ if __name__ == "__main__":
         is_to_reset = False
         if is_show_menu:
             cli = CliInterface()
-            # list_repo = cli.ask_desired_repos(list_repo)
+            list_repo = cli.ask_desired_repos(list_repo)
             is_to_reset = cli.ask_is_to_reset()
-            print(is_to_reset)
-            # gradle_cmd = cli.ask_type_gradle_build()
+            gradle_cmd = cli.ask_type_gradle_build()
+            for r in list_repo:
+                r.build_command = gradle_cmd
 
-            # for r in list_repo:
-            #     r.build_command = gradle_cmd
-            # import ipdb; ipdb.set_trace()
+                
     #     if is_clean_m2:
     #         PathHelper.delete_m2(Const.M2_PATH)
 
