@@ -16,9 +16,6 @@ class Const(object):
                                 'com.ericsson.bss.ael.jive',
                                     'com.ericsson.bss.ael.aep.sdk')
     MAVEN_COMMAND = ['mvn', 'clean','install']
-    GRADLE_FULL = ['gradlew', 'clean', 'build']
-    GRADLE_SKIP = GRADLE_FULL + \
-                        ['-x', 'test', '-x', 'check', '-x', 'javadoc']
     BUILD_CMDS = {
         1: 'gradlew clean build',
         2: 'gradlew clean build -x test -x check -x javadoc',
@@ -71,10 +68,7 @@ class HandlerProcess(object):
 
     def _build_repository(self, repo, build_full):
         print(f"********* Starting build: {repo._absolute_path} *********")
-        
-        # build_command = repo.get_build_command(build_full)
-        build_command = repo.build_command
-        self._wrapper_run_process(build_command, repo._absolute_path)
+        self._wrapper_run_process(repo.build_command, repo._absolute_path)
         print("********* Build finished successfully!!! *****************")
 
     def _wrapper_run_process(self, command, path):
@@ -129,7 +123,7 @@ class CommandArgsProcessor(object):
 class Repository(object):
     _initial = None
     _maven_types = ('JIVE', )
-    _build_command = None
+    __build_command = None
 
     def __init__(self, absolute_path):
         if os.path.isdir(absolute_path):
@@ -144,20 +138,18 @@ class Repository(object):
             self._initial = self._absolute_path.split('.')[-1].upper()
         return self._initial
 
-   
     @property
     def build_command(self):
-        if self._initial in self._maven_types:
-            return Const.MAVEN_COMMAND
-        return Const.GRADLE_FULL
-        # if is_build_full:
-        #     return Const.GRADLE_FULL
-        # else:
-        #     return Const.GRADLE_SKIP
+        if self.__build_command:
+            return self.__build_command
+        else:
+            return Const.BUILD_CMDS.get(1)
 
     @build_command.setter
     def build_command(self, cmd):
-        if self._initial not in self._maven_types:
+        if self._initial in self._maven_types:
+            self.__build_command = Const.MAVEN_COMMAND
+        else:
             self.__build_command = cmd
     
     def __str__(self):
@@ -165,7 +157,6 @@ class Repository(object):
 
 
 class PathHelper(object):
-    
     @staticmethod
     def delete_m2(m2_path):
         print("Start deleting ......")
@@ -206,7 +197,6 @@ class CliInterface(object):
 
         choices = set([m for r in user_awser \
                         for m in menu.split('\n') if r in m])
-        print(choices)
         return [repo for repo in list_repo \
                         for c in choices \
                             if c.endswith(repo.repo_initial)]
@@ -300,13 +290,12 @@ if __name__ == "__main__":
             for r in list_repo:
                 r.build_command = gradle_cmd
 
-                
-    #     if is_clean_m2:
-    #         PathHelper.delete_m2(Const.M2_PATH)
+        if is_clean_m2:
+            PathHelper.delete_m2(Const.M2_PATH)
 
-    #     handler = HandlerProcess(list_repo)
-    #     handler.start_process(is_clean_m2, is_build_full, \
-    #                                     is_to_reset, is_show_menu)
-    # else:
-    #     print(">>>>>> Failed to read the repositories directories.\n"+
-    #             ">>>>>> Please make sure you had cloned all the repositories")
+        handler = HandlerProcess(list_repo)
+        handler.start_process(is_clean_m2, is_build_full, \
+                                        is_to_reset, is_show_menu)
+    else:
+        print(">>>>>> Failed to read the repositories directories.\n"+
+                ">>>>>> Please make sure you had cloned all the repositories")
