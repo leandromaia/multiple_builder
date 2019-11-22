@@ -286,7 +286,8 @@ if __name__ == "__main__":
             cli = CliInterface()
             list_repo = cli.ask_desired_repos(list_repo)
             is_to_reset = cli.ask_is_to_reset()
-            gradle_cmd = cli.ask_type_gradle_build()
+            gradle_cmd = Const.BUILD_CMDS.get(1) if is_build_full \
+                            else cli.ask_type_gradle_build()
             for r in list_repo:
                 r.build_command = gradle_cmd
 
