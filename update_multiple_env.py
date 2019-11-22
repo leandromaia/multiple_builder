@@ -83,27 +83,34 @@ class HandlerProcess(object):
 class CommandArgsProcessor(object):
 
     def __init__(self):
-        parser = argparse.ArgumentParser(\
-                                    description='Options to build projects!')
+        parser = argparse.ArgumentParser(description=\
+                        '>>>>> Options to update and build projects! <<<<<')
         parser.add_argument('-b', \
                         '--build-full', \
                         action='store_true', \
-                        help="Execute the full gradlew clean build process")
+                        help="Execute the full gradlew clean build process. \
+                            This option also skip the menu to select the \
+                            others gradle options.")
 
         parser.add_argument('-c', \
                         '--clean-m2', \
                         action='store_true', \
-                        help="Delete all files from m2 folder")
+                        help="Delete all folders and files from project \
+                            m2 folder.")
 
         parser.add_argument('-d', \
                         '--repos-directory', \
-                        help='Add your repositories absolute path.')
+                        help='Add your repositories absolute path. If this \
+                            parameter is not passed the script absolute path \
+                            will be consider as the root path to find the \
+                            repositories folder.')
 
         parser.add_argument('-m', \
                         '--show-menu', \
                         action='store_true', \
                         help='Show the CLI User Menu thats allow to choice '\
-                            'wich repositories to update.')
+                            'some options to update and build the \
+                            repositories.')
         self._parsed_args = parser.parse_args()
     
     def is_build_full(self):
@@ -269,8 +276,6 @@ class CliInterface(object):
 
 
 if __name__ == "__main__":
-    print("********* Starting Repo Update *****************")
-    
     cmd_args_proc = CommandArgsProcessor()    
     is_build_full = cmd_args_proc.is_build_full()
     is_clean_m2 = cmd_args_proc.is_to_clean_m2()
