@@ -7,14 +7,14 @@ from pathlib import Path
 
 
 class Const(object):
-    M2_PATH = ".m2/repository/com/ericsson/bss"
+    M2_PATH = ".m2/repository/sample"
     PULL_UPDATED = "Already up to date"
-    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
-                    'com.ericsson.bss.ael.aep.plugins',
-                        'com.ericsson.bss.ael.bae',
-                            'com.ericsson.bss.ael.dae',
-                                'com.ericsson.bss.ael.jive',
-                                    'com.ericsson.bss.ael.aep.sdk')
+    REPO_PATHS = ('sample_1', 
+                    'sample_2',
+                        'sample_3',
+                            'sample_4',
+                                'sample_5',
+                                    'sample_6')
     MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
         1: 'gradlew clean build',
