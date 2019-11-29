@@ -7,14 +7,14 @@ from pathlib import Path
 
 
 class Const(object):
-    M2_PATH = ".m2/repository/sample"
+    M2_PATH = ".m2/repository/com/ericsson/bss"
     PULL_UPDATED = "Already up to date"
-    REPO_PATHS = ('sample_1', 
-                    'sample_2',
-                        'sample_3',
-                            'sample_4',
-                                'sample_5',
-                                    'sample_6')
+    REPO_PATHS = ('com.ericsson.bss.ael.aep',
+                    'com.ericsson.bss.ael.aep.plugins',                    
+                        'com.ericsson.bss.ael.bae',
+                            'com.ericsson.bss.ael.dae',
+                                'com.ericsson.bss.ael.jive',
+                                    'com.ericsson.bss.ael.aep.sdk')
     MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
         1: 'gradlew clean build',
@@ -31,15 +31,16 @@ class HandlerProcess(object):
 
     def start_process(self, has_deleted_m2, build_full=False, \
                                     is_to_reset=False, from_menu=False):
-        for repo in self._repositories:
-            pull_result = self._update_repository(\
-                                        repo._absolute_path, is_to_reset)
+        import pdb; pdb.set_trace()
+        # for repo in self._repositories:
+        #     pull_result = self._update_repository(\
+        #                                 repo._absolute_path, is_to_reset)
             
-            if Const.PULL_UPDATED not in pull_result \
-                                or has_deleted_m2 or from_menu:
-                self._build_repository(repo, build_full)
-            else:
-                print(f'The {repo.repo_initial} its already up to date!')
+        #     if Const.PULL_UPDATED not in pull_result \
+        #                         or has_deleted_m2 or from_menu:
+        #         self._build_repository(repo, build_full)
+        #     else:
+        #         print(f'The {repo.repo_initial} its already up to date!')
 
     def _update_repository(self, repo_path, is_to_reset):
         if is_to_reset:
@@ -79,7 +80,6 @@ class HandlerProcess(object):
         return process.stdout
 
 
-
 class CommandArgsProcessor(object):
 
     def __init__(self):
@@ -105,12 +105,12 @@ class CommandArgsProcessor(object):
                             will be consider as the root path to find the \
                             repositories folder.')
 
-        parser.add_argument('-m', \
-                        '--show-menu', \
+        parser.add_argument('-sm', \
+                        '--skip-menu', \
                         action='store_true', \
-                        help='Show the CLI User Menu thats allow to choice '\
-                            'some options to update and build the \
-                            repositories.')
+                        help='Skip visualization of the CLI User Menu. \
+                            Passing this option all the found repositories \
+                            will be update and build automatically.')
         self._parsed_args = parser.parse_args()
     
     def is_build_full(self):
@@ -119,8 +119,8 @@ class CommandArgsProcessor(object):
     def is_to_clean_m2(self):
         return self._parsed_args.clean_m2
 
-    def is_to_show_menu(self):
-        return self._parsed_args.show_menu
+    def is_to_skip_menu(self):
+        return self._parsed_args.skip_menu
 
     @property
     def repos_directory(self):
@@ -135,14 +135,18 @@ class Repository(object):
     def __init__(self, absolute_path):
         if os.path.isdir(absolute_path):
             self._absolute_path = absolute_path
+            self.build_initial_value()
         else:
             print(f"The directory {absolute_path} doesn't exist!!!")
             raise OSError(f"The directory {absolute_path} doesn't exist!!!")
 
+    def build_initial_value(self):
+        self._initial = self._absolute_path.split('.')[-1].upper()
+
     @property
     def repo_initial(self):
         if not self._initial:
-            self._initial = self._absolute_path.split('.')[-1].upper()
+            self.build_initial_value()
         return self._initial
 
     @property
@@ -279,7 +283,7 @@ if __name__ == "__main__":
     cmd_args_proc = CommandArgsProcessor()    
     is_build_full = cmd_args_proc.is_build_full()
     is_clean_m2 = cmd_args_proc.is_to_clean_m2()
-    is_show_menu = cmd_args_proc.is_to_show_menu()
+    is_skip_menu = cmd_args_proc.is_to_skip_menu()
 
     repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
@@ -287,21 +291,27 @@ if __name__ == "__main__":
 
     if len(repo_paths) > 0:
         is_to_reset = False
-        if is_show_menu:
+        gradle_cmd = None
+
+        if not is_skip_menu:
             cli = CliInterface()
             list_repo = cli.ask_desired_repos(list_repo)
             is_to_reset = cli.ask_is_to_reset()
-            gradle_cmd = Const.BUILD_CMDS.get(1) if is_build_full \
-                            else cli.ask_type_gradle_build()
-            for r in list_repo:
-                r.build_command = gradle_cmd
+            if not is_build_full:
+                gradle_cmd = cli.ask_type_gradle_build()
+            
+        if not gradle_cmd:
+            gradle_cmd = Const.BUILD_CMDS.get(1)
+
+        for r in list_repo:
+            r.build_command = gradle_cmd
 
         if is_clean_m2:
             PathHelper.delete_m2(Const.M2_PATH)
 
         handler = HandlerProcess(list_repo)
         handler.start_process(is_clean_m2, is_build_full, \
-                                        is_to_reset, is_show_menu)
+                                        is_to_reset, is_skip_menu)
     else:
         print(">>>>>> Failed to read the repositories directories.\n"+
                 ">>>>>> Please make sure you had cloned all the repositories")
