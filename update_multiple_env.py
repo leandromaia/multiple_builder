@@ -7,14 +7,14 @@ from pathlib import Path
 
 
 class Const(object):
-    M2_PATH = ".m2/repository/com/ericsson/bss"
+    M2_PATH = ".m2/repository/"
     PULL_UPDATED = "Already up to date"
-    REPO_PATHS = ('com.ericsson.bss.ael.aep',
-                    'com.ericsson.bss.ael.aep.plugins',                    
-                        'com.ericsson.bss.ael.bae',
-                            'com.ericsson.bss.ael.dae',
-                                'com.ericsson.bss.ael.jive',
-                                    'com.ericsson.bss.ael.aep.sdk')
+    REPO_PATHS = ('sample_1',
+                    'sample_2',                    
+                        'sample_3',
+                            'sample_4',
+                                'sample_5',
+                                    'sample_6')
     MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
         1: 'gradlew clean build',
@@ -31,16 +31,15 @@ class HandlerProcess(object):
 
     def start_process(self, has_deleted_m2, build_full=False, \
                                     is_to_reset=False, from_menu=False):
-        import pdb; pdb.set_trace()
-        # for repo in self._repositories:
-        #     pull_result = self._update_repository(\
-        #                                 repo._absolute_path, is_to_reset)
+        for repo in self._repositories:
+            pull_result = self._update_repository(\
+                                        repo._absolute_path, is_to_reset)
             
-        #     if Const.PULL_UPDATED not in pull_result \
-        #                         or has_deleted_m2 or from_menu:
-        #         self._build_repository(repo, build_full)
-        #     else:
-        #         print(f'The {repo.repo_initial} its already up to date!')
+            if Const.PULL_UPDATED not in pull_result \
+                                or has_deleted_m2 or from_menu:
+                self._build_repository(repo, build_full)
+            else:
+                print(f'The {repo.repo_initial} its already up to date!')
 
     def _update_repository(self, repo_path, is_to_reset):
         if is_to_reset:
