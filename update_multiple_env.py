@@ -7,25 +7,14 @@ from pathlib import Path
 
 
 class Const(object):
-
-    M2_PATH = ".m2/repository/com/ericsson/bss"
-      
-    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
-                    'com.ericsson.bss.ael.aep.plugins',                    
-                        'com.ericsson.bss.ael.bae',                        
-                            'com.ericsson.bss.ael.dae',                            
-                                'com.ericsson.bss.ael.jive',                                
-                                    'com.ericsson.bss.ael.aep.sdk')
-
     PULL_UPDATED = "Already up to date"
-    
-    # M2_PATH = ".m2/repository/"
-    # REPO_PATHS = ('sample_1',
-    #                 'sample_2',                    
-    #                     'sample_3',
-    #                         'sample_4',
-    #                             'sample_5',
-    #                                 'sample_6')
+    M2_PATH = ".m2/repository/"
+    REPO_PATHS = ('sample_1',
+                    'sample_2',                    
+                        'sample_3',
+                            'sample_4',
+                                'sample_5',
+                                    'sample_6')
 
     MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
@@ -44,15 +33,21 @@ class HandlerProcess(object):
         self._process = process
 
     def start_process(self, repositories):
+        self._clean_m2_project_folder()
+
         for repo in repositories:
             pull_result = self._update_repository(repo._absolute_path)
             
             if Const.PULL_UPDATED not in pull_result \
-                            or self._process.clean.is_clean_m2 \
-                                or self._process.is_skip_menu:
+                        or self._process.clean.is_clean_m2 \
+                            or self._process.is_skip_menu:
                 self._build_repository(repo)
             else:
                 print(f'The {repo.repo_initial} its already up to date!')
+    
+    def _clean_m2_project_folder(self):
+        if self._process.is_clean_m2:
+            PathHelper.delete_m2()
 
     def _update_repository(self, repo_path):
         if self._process.is_to_reset:
@@ -181,9 +176,9 @@ class Repository(object):
 
 class PathHelper(object):
     @staticmethod
-    def delete_m2(m2_path):
+    def delete_m2():
         print("Start deleting ......")
-        absolute_m2_path = Path.joinpath(Path.home(), m2_path)
+        absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
         
         if absolute_m2_path.is_dir():
             print(f'Deleting the M2 files: {absolute_m2_path}')
@@ -226,10 +221,10 @@ class CliInterface(object):
 
     def ask_is_to_reset(self):
         menu = 'Do you want to reset your repositories branch, '+\
-                'using "git reset --hard <<branch name >>":\n1 - Yes\n2 - No\nR:'
+                'using "git reset --hard <<branch name >>":\n'+\
+                    '1 - Yes\n2 - No\nR: '
         user_awser = self._get_only_one_awser(\
                                         menu, self.MENU_OPTIONS_TO_RESET_ENV)
-
         return True \
                 if int(user_awser) == self.POSITIVE_OPTION_TO_RESET \
                     else False
@@ -328,7 +323,6 @@ if __name__ == "__main__":
             list_repo = cli.ask_desired_repos(list_repo)
             process.is_to_reset = cli.ask_is_to_reset()
             process.build_branch = cli.ask_wich_build_branch()
-            print(process.build_branch)
 
             if not process.is_build_full:
                 gradle_cmd = cli.ask_type_gradle_build()
@@ -338,9 +332,6 @@ if __name__ == "__main__":
 
         for r in list_repo:
             r.build_command = gradle_cmd
-
-        if process.is_clean_m2:
-            PathHelper.delete_m2(Const.M2_PATH)
 
         handler = HandlerProcess(process)
         handler.start_process(list_repo)
