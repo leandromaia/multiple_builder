@@ -7,14 +7,24 @@ from pathlib import Path
 
 
 class Const(object):
+    M2_PATH = ".m2/repository/com/ericsson/bss"
+      
+    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
+                    'com.ericsson.bss.ael.aep.plugins',                    
+                        'com.ericsson.bss.ael.bae',                        
+                            'com.ericsson.bss.ael.dae',                            
+                                'com.ericsson.bss.ael.jive',                                
+                                    'com.ericsson.bss.ael.aep.sdk')
+
     PULL_UPDATED = "Already up to date"
-    M2_PATH = ".m2/repository/"
-    REPO_PATHS = ('sample_1',
-                    'sample_2',                    
-                        'sample_3',
-                            'sample_4',
-                                'sample_5',
-                                    'sample_6')
+    
+    # M2_PATH = ".m2/repository/"
+    # REPO_PATHS = ('sample_1',
+    #                 'sample_2',                    
+    #                     'sample_3',
+    #                         'sample_4',
+    #                             'sample_5',
+    #                                 'sample_6')
 
     MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
@@ -55,9 +65,8 @@ class HandlerProcess(object):
         else:
             args_checkout = ['git', 'checkout', self._process.build_branch]
             self._wrapper_run_process(args_checkout, repo_path)
-            print('************ Checkout to branch MASTER ****************')
+            print(f'[INFO] Checkout to branch MASTER -> {repo_path}')
         
-        print(f"********* Starting pull: {repo_path} *****************")
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
 
@@ -83,7 +92,8 @@ class HandlerProcess(object):
         process = subprocess.run(command, shell=True, check=True, \
                                     stdout=subprocess.PIPE, cwd=path, \
                                         universal_newlines=True)
-        print(f'The command: {command} to repository: {path} has executed successfully')
+        print(f'[INFO] The command: {command} to repository: {path} '+\
+                                                'has executed successfully')
         return process.stdout
 
 
