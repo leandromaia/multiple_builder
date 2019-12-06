@@ -53,9 +53,9 @@ class HandlerProcess(object):
         if self._process.is_to_reset:
             self._update_with_reset(repo_path)
         else:
-            print('************ Checkout to branch MASTER ****************')
-            args_checkout = ['git', 'checkout', 'master']
+            args_checkout = ['git', 'checkout', self._process.build_branch]
             self._wrapper_run_process(args_checkout, repo_path)
+            print('************ Checkout to branch MASTER ****************')
         
         print(f"********* Starting pull: {repo_path} *****************")
         args_pull = ['git', 'pull']
