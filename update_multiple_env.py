@@ -1,30 +1,32 @@
 #!/usr/bin/env python
 import argparse
+import os
+import logging
 import subprocess
 import shutil
-import os
 from pathlib import Path
 
 
-class Const(object):
-    M2_PATH = ".m2/repository/com/ericsson/bss"
-      
-    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
-                    'com.ericsson.bss.ael.aep.plugins',                    
-                        'com.ericsson.bss.ael.bae',                        
-                            'com.ericsson.bss.ael.dae',                            
-                                'com.ericsson.bss.ael.jive',                                
-                                    'com.ericsson.bss.ael.aep.sdk')
+logger = None
 
+def setup_logger():
+    global logger
+    logFormatter = '%(levelname)s - %(message)s'
+    logging.basicConfig(format=logFormatter, level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+
+
+class Const(object):
+   
     PULL_UPDATED = "Already up to date"
     
-    # M2_PATH = ".m2/repository/"
-    # REPO_PATHS = ('sample_1',
-    #                 'sample_2',                    
-    #                     'sample_3',
-    #                         'sample_4',
-    #                             'sample_5',
-    #                                 'sample_6')
+    M2_PATH = ".m2/repository/"
+    REPO_PATHS = ('sample_1',
+                    'sample_2',                    
+                        'sample_3',
+                            'sample_4',
+                                'sample_5',
+                                    'sample_6')
 
     MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
@@ -53,7 +55,8 @@ class HandlerProcess(object):
                             or self._process.is_skip_menu:
                 self._build_repository(repo)
             else:
-                print(f'The {repo.repo_initial} its already up to date!')
+                logger.info(\
+                    f'The {repo.repo_initial} its already up to date!')
     
     def _clean_m2_project_folder(self):
         if self._process.is_clean_m2:
@@ -65,34 +68,30 @@ class HandlerProcess(object):
         else:
             args_checkout = ['git', 'checkout', self._process.build_branch]
             self._wrapper_run_process(args_checkout, repo_path)
-            print(f'[INFO] Checkout to branch MASTER -> {repo_path}')
         
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
 
     def _update_with_reset(self, repo_path):
-        print('************ Clean repository ****************')
         args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
         self._wrapper_run_process(args_reset, repo_path)
 
-        print('************ Checkout to branch MASTER ****************')
         args_checkout = ['git', 'checkout', 'master']
         self._wrapper_run_process(args_checkout, repo_path)
-        
-        print('************ Reset repository ****************')
+
         args_reset = ['git', 'reset', '--hard', 'origin/master']
         self._wrapper_run_process(args_reset, repo_path)
 
     def _build_repository(self, repo):
-        print(f"********* Starting build: {repo._absolute_path} *********")
         self._wrapper_run_process(repo.build_command, repo._absolute_path)
-        print("********* Build finished successfully!!! *****************")
+        logger.info(f"Repository: {repo._absolute_path} has build " +\
+                        f"successfully, with command: {repo.build_command}")
 
     def _wrapper_run_process(self, command, path):
         process = subprocess.run(command, shell=True, check=True, \
                                     stdout=subprocess.PIPE, cwd=path, \
                                         universal_newlines=True)
-        print(f'[INFO] The command: {command} to repository: {path} '+\
+        logger.info(f'The command: {command} to repository: {path} '+\
                                                 'has executed successfully')
         return process.stdout
 
@@ -154,7 +153,7 @@ class Repository(object):
             self._absolute_path = absolute_path
             self.build_initial_value()
         else:
-            print(f"The directory {absolute_path} doesn't exist!!!")
+            logger.error(f"The directory {absolute_path} doesn't exist!!!")
             raise OSError(f"The directory {absolute_path} doesn't exist!!!")
 
     def build_initial_value(self):
@@ -187,19 +186,19 @@ class Repository(object):
 class PathHelper(object):
     @staticmethod
     def delete_m2():
-        print("Start deleting ......")
         absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
         
         if absolute_m2_path.is_dir():
-            print(f'Deleting the M2 files: {absolute_m2_path}')
             try:
                 shutil.rmtree(absolute_m2_path)
-                print("The m2 folder has deleted sucessfully")
+                logger.info(f"The m2 folder: {absolute_m2_path} "+\
+                                            "has deleted sucessfully")
             except OSError:
-                print(f'Error: process to delete folders and files from \
-                        {absolute_m2_path} has failed.')
+                logger.error(f'Process to delete folders and files from ' + \
+                                        f'{absolute_m2_path} has failed.')
         else:
-            print(f'The path {absolute_m2_path} is not a valid directory')
+            logger.warning(f'Is not possible to clean the M2 project. ' +\
+                    f'The path {absolute_m2_path} is not a valid directory')
     
     @staticmethod
     def fetch_repo_paths(root_path):
@@ -298,8 +297,8 @@ class CliInterface(object):
             if int(awser) not in indexes:
                 raise ValueError("Failed - Not a valid index.")
         except ValueError:
-            print(f">>>>> Invalid choice: {awser} <<<<<<\
-                            \n\tPlease choose a valid option\n")
+            logger.error(f'Invalid choice: {awser}. ' +\
+                                    'Please choose a valid option')
             return False
         return True
 
@@ -314,6 +313,7 @@ class Process(object):
 
 
 if __name__ == "__main__":
+    setup_logger()
     cmd_args_proc = CommandArgsProcessor()
 
     process = Process()
@@ -346,5 +346,5 @@ if __name__ == "__main__":
         handler = HandlerProcess(process)
         handler.start_process(list_repo)
     else:
-        print(">>>>>> Failed to read the repositories directories.\n"+
-                ">>>>>> Please make sure you had cloned all the repositories")
+        logger.error(f'Failed to read the repositories directories. '+\
+            'Please make sure you had cloned all the repositories')
