@@ -19,7 +19,8 @@ def setup_logger():
 class Const(object):
    
     PULL_UPDATED = "Already up to date"
-    
+                                       
+    MAVEN_COMMAND = ['mvn', 'clean','install']
     M2_PATH = ".m2/repository/"
     REPO_PATHS = ('sample_1',
                     'sample_2',                    
@@ -28,7 +29,6 @@ class Const(object):
                                 'sample_5',
                                     'sample_6')
 
-    MAVEN_COMMAND = ['mvn', 'clean','install']
     BUILD_CMDS = {
         1: 'gradlew clean build',
         2: 'gradlew clean build -x test -x check -x javadoc',
@@ -51,9 +51,10 @@ class HandlerProcess(object):
             pull_result = self._update_repository(repo._absolute_path)
             
             if Const.PULL_UPDATED not in pull_result \
-                        or self._process.clean.is_clean_m2 \
+                        or self._process.is_clean_m2 \
                             or self._process.is_skip_menu:
-                self._build_repository(repo)
+                self._wrapper_run_process(repo.build_command, \
+                                                repo._absolute_path)
             else:
                 logger.info(\
                     f'The {repo.repo_initial} its already up to date!')
@@ -81,11 +82,6 @@ class HandlerProcess(object):
 
         args_reset = ['git', 'reset', '--hard', 'origin/master']
         self._wrapper_run_process(args_reset, repo_path)
-
-    def _build_repository(self, repo):
-        self._wrapper_run_process(repo.build_command, repo._absolute_path)
-        logger.info(f"Repository: {repo._absolute_path} has build " +\
-                        f"successfully, with command: {repo.build_command}")
 
     def _wrapper_run_process(self, command, path):
         process = subprocess.run(command, shell=True, check=True, \
