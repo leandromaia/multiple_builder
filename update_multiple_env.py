@@ -11,24 +11,30 @@ logger = None
 
 def setup_logger():
     global logger
-    logFormatter = '%(levelname)s - %(message)s'
+    logFormatter = '> %(levelname)s - %(message)s'
     logging.basicConfig(format=logFormatter, level=logging.DEBUG)
     logger = logging.getLogger(__name__)
 
 
 class Const(object):
-
-    PULL_UPDATED = "Already up to date"
-                                       
+    PULL_UPDATED = "Already up to date"                   
     MAVEN_COMMAND = ['mvn', 'clean','install']
+    M2_PATH = ".m2/repository/com/ericsson/bss"
+    PULL_UPDATED = "Already up to date"
+    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
+                    'com.ericsson.bss.ael.aep.plugins',
+                        'com.ericsson.bss.ael.bae',
+                            'com.ericsson.bss.ael.dae',
+                                'com.ericsson.bss.ael.jive',
+                                    'com.ericsson.bss.ael.aep.sdk')
 
-    M2_PATH = ".m2/repository/"
-    REPO_PATHS = ('sample_1',
-                    'sample_2',                    
-                        'sample_3',
-                            'sample_4',
-                                'sample_5',
-                                    'sample_6')
+    # M2_PATH = ".m2/repository/"
+    # REPO_PATHS = ('sample_1',
+    #                 'sample_2',                    
+    #                     'sample_3',
+    #                         'sample_4',
+    #                             'sample_5',
+    #                                 'sample_6')
     BUILD_CMDS = {
         1: 'gradlew clean build',
         2: 'gradlew clean build -x test -x check -x javadoc',
@@ -69,7 +75,6 @@ class HandlerProcess(object):
         else:
             args_checkout = ['git', 'checkout', self._process.build_branch]
             self._wrapper_run_process(args_checkout, repo_path)
-            print('************ Checkout to branch MASTER ****************')
         
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
