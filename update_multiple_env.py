@@ -17,10 +17,11 @@ def setup_logger():
 
 
 class Const(object):
-   
+
     PULL_UPDATED = "Already up to date"
                                        
     MAVEN_COMMAND = ['mvn', 'clean','install']
+
     M2_PATH = ".m2/repository/"
     REPO_PATHS = ('sample_1',
                     'sample_2',                    
@@ -28,7 +29,6 @@ class Const(object):
                             'sample_4',
                                 'sample_5',
                                     'sample_6')
-
     BUILD_CMDS = {
         1: 'gradlew clean build',
         2: 'gradlew clean build -x test -x check -x javadoc',
@@ -58,7 +58,7 @@ class HandlerProcess(object):
             else:
                 logger.info(\
                     f'The {repo.repo_initial} its already up to date!')
-    
+
     def _clean_m2_project_folder(self):
         if self._process.is_clean_m2:
             PathHelper.delete_m2()
@@ -69,6 +69,7 @@ class HandlerProcess(object):
         else:
             args_checkout = ['git', 'checkout', self._process.build_branch]
             self._wrapper_run_process(args_checkout, repo_path)
+            print('************ Checkout to branch MASTER ****************')
         
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
@@ -310,6 +311,7 @@ class Process(object):
 
 if __name__ == "__main__":
     setup_logger()
+
     cmd_args_proc = CommandArgsProcessor()
 
     process = Process()
