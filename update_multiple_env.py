@@ -5,7 +5,8 @@ import logging
 import subprocess
 import shutil
 from pathlib import Path
-
+from PyQt5 import QtWidgets
+from main_window import Ui_MainWindow
 
 logger = None
 
@@ -21,13 +22,24 @@ class Const(object):
     MAVEN_COMMAND = ['mvn', 'clean','install']
     PULL_UPDATED = "Already up to date"
     
-    M2_PATH = ".m2/repository/"
-    REPO_PATHS = ('sample_1',
-                    'sample_2',                    
-                        'sample_3',
-                            'sample_4',
-                                'sample_5',
-                                    'sample_6')
+    # M2_PATH = ".m2/repository/"
+    # REPO_PATHS = ('sample_1',
+    #                 'sample_2',                    
+    #                     'sample_3',
+    #                         'sample_4',
+    #                             'sample_5',
+    #                                 'sample_6')
+
+    M2_PATH = ".m2/repository/com/ericsson/bss"
+   
+    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
+                    'com.ericsson.bss.ael.aep.plugins',
+                        'com.ericsson.bss.ael.bae',
+                            'com.ericsson.bss.ael.dae',
+                                'com.ericsson.bss.ael.jive',
+                                    'com.ericsson.bss.ael.aep.sdk')
+
+
     BUILD_CMDS = {
         1: 'gradlew clean build',
         2: 'gradlew clean build -x test -x check -x javadoc',
@@ -144,20 +156,21 @@ class Repository(object):
     __build_command = None
 
     def __init__(self, absolute_path):
+        #TODO Replace the structure below to with
         if os.path.isdir(absolute_path):
             self._absolute_path = absolute_path
-            self.build_initial_value()
+            self._build_initial_value()
         else:
             logger.error(f"The directory {absolute_path} doesn't exist!!!")
             raise OSError(f"The directory {absolute_path} doesn't exist!!!")
 
-    def build_initial_value(self):
+    def _build_initial_value(self):
         self._initial = self._absolute_path.split('.')[-1].upper()
 
     @property
     def repo_initial(self):
         if not self._initial:
-            self.build_initial_value()
+            self._build_initial_value()
         return self._initial
 
     @property
@@ -307,7 +320,26 @@ class Process(object):
         self.build_branch = Const.BUILD_BRANCH
 
 
+class SetupApp(QtWidgets.QMainWindow):
+
+    def __init__(self):
+        super(SetupApp, self).__init__()
+        # Set up the user interface from Designer
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+
+        # Connect up the button.
+    #     self.ui.pushButton_Calcular.clicked.connect(self.calcular_imc)
+
+    # def calcular_imc(self):
+    #     altura = eval(self.ui.altura_le.text())
+    #     peso = eval(self.ui.peso_le.text())
+    #     imc = peso / (altura * altura)
+    #     self.ui.imc_lb.setText(f'self.ui.imc_lb.text(): {str(imc)}')
+
+
 if __name__ == "__main__":
+    
     setup_logger()
 
     cmd_args_proc = CommandArgsProcessor()
@@ -332,15 +364,22 @@ if __name__ == "__main__":
 
             if not process.is_build_full:
                 gradle_cmd = cli.ask_type_gradle_build()
+        else:
+            import ipdb; ipdb.set_trace()
+            import sys
+            app = QtWidgets.QApplication(sys.argv)
+            av = SetupApp()
+            av.show()
+            sys.exit(app.exec_())
 
-        if not gradle_cmd:
-            gradle_cmd = Const.BUILD_CMDS.get(1)
+    #     if not gradle_cmd:
+    #         gradle_cmd = Const.BUILD_CMDS.get(1)
 
-        for r in list_repo:
-            r.build_command = gradle_cmd
+    #     for r in list_repo:
+    #         r.build_command = gradle_cmd
 
-        handler = HandlerProcess(process)
-        handler.start_process(list_repo)
+    #     handler = HandlerProcess(process)
+    #     handler.start_process(list_repo)
     else:
         logger.error(f'Failed to read the repositories directories. '+\
             'Please make sure you had cloned all the repositories')
