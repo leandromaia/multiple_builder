@@ -30,15 +30,7 @@ class Const(object):
     #                             'sample_5',
     #                                 'sample_6')
 
-    M2_PATH = ".m2/repository/com/ericsson/bss"
-   
-    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
-                    'com.ericsson.bss.ael.aep.plugins',
-                        'com.ericsson.bss.ael.bae',
-                            'com.ericsson.bss.ael.dae',
-                                'com.ericsson.bss.ael.jive',
-                                    'com.ericsson.bss.ael.aep.sdk')
-
+  
 
     BUILD_CMDS = {
         1: 'gradlew clean build',
