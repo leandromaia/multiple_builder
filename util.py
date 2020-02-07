@@ -50,6 +50,8 @@ class Const(object):
 class PathHelper(object):
     @staticmethod
     def delete_m2():
+        import ipdb; ipdb.set_trace()
+        setup_logger()
         absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
         
         if absolute_m2_path.is_dir():

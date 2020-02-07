@@ -1,4 +1,5 @@
 from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QMessageBox
 from main_window import Ui_MainWindow
 from util import Const, HandlerProcess, Process
 
@@ -15,7 +16,6 @@ class SetupApp(QtWidgets.QMainWindow):
         self.ui.comboBoxBuild.addItems(Const.BUILD_CMDS.values())
 
         self.ui.pushButtonExecute.clicked.connect(self.execute_process)
-        self.handlerProcess = HandlerProcess()
 
     def _create_checkBox_from_repositories(self, repositories):
         index = 1
@@ -27,9 +27,16 @@ class SetupApp(QtWidgets.QMainWindow):
                             QtWidgets.QFormLayout.LabelRole, check_box)
             index += 1
 
-
     def execute_process(self):
-        altura = eval(self.ui.altura_le.text())
-        peso = eval(self.ui.peso_le.text())
-        imc = peso / (altura * altura)
-        self.ui.imc_lb.setText(f'self.ui.imc_lb.text(): {str(imc)}')
+        process = Process()
+        process.build_branch = self.ui.lineEditBranch.text()
+        process.is_clean_m2 = self.ui.checkBoxDeleteM2.isChecked()
+        process.is_to_reset = self.ui.checkBoxGitReset.isChecked()
+
+        handler = HandlerProcess(process)
+        handler.start_process(self.repositories)
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText("The build has finished successfully!!")
+        msg.setWindowTitle("Success!!!")
+        msg.exec()
