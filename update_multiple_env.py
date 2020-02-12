@@ -186,8 +186,7 @@ class CliInterfaceControl(object):
 
     def _execute_build(self):
         handler = HandlerProcess(self._process)
-        print("Sucesso ...........................")
-        # handler.start_process(self._list_repo)
+        handler.start_process(self._list_repo)
     
     def _apply_select_build_command(self, build_command):
         for repository in self._list_repo:

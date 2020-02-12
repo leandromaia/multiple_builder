@@ -81,6 +81,7 @@ class HandlerProcess(object):
 
     def __init__(self, process):
         self._process = process
+        setup_logger()
 
     def start_process(self, repositories):
         self._clean_m2_project_folder()
@@ -89,8 +90,7 @@ class HandlerProcess(object):
             pull_result = self._update_repository(repo._absolute_path)
             
             if Const.PULL_UPDATED not in pull_result \
-                        or self._process.is_clean_m2 \
-                            or self._process.is_skip_menu:
+                        or self._process.is_clean_m2:
                 self._wrapper_run_process(repo.build_command, \
                                                 repo._absolute_path)
             else:
