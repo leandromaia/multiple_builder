@@ -77,15 +77,6 @@ class PathHelper(object):
         return valid_paths
 
 
-class Process(object):
-    def __init__(self):
-        self.is_build_full = False
-        self.is_clean_m2 = False
-        self.is_to_reset = False
-        self.is_skip_menu = False
-        self.build_branch = Const.BUILD_BRANCH
-
-
 class HandlerProcess(object):
 
     def __init__(self, process):

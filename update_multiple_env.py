@@ -8,7 +8,8 @@ from PyQt5 import QtWidgets
 
 from main_window import Ui_MainWindow
 from setup_gui import SetupApp
-from util import Const, PathHelper, HandlerProcess, Process
+from util import Const, PathHelper, HandlerProcess
+from models import Repository, Process
 
 logger = None
 
@@ -67,47 +68,6 @@ class CommandArgsProcessor(object):
         return self._parsed_args.repos_directory
 
 
-class Repository(object):
-    _initial = None
-    _maven_types = ('JIVE', )
-    __build_command = None
-
-    def __init__(self, absolute_path):
-        #TODO Replace the structure below to with
-        if os.path.isdir(absolute_path):
-            self._absolute_path = absolute_path
-            self._build_initial_value()
-        else:
-            logger.error(f"The directory {absolute_path} doesn't exist!!!")
-            raise OSError(f"The directory {absolute_path} doesn't exist!!!")
-
-    def _build_initial_value(self):
-        self._initial = self._absolute_path.split('.')[-1].upper()
-
-    @property
-    def repo_initial(self):
-        if not self._initial:
-            self._build_initial_value()
-        return self._initial
-
-    @property
-    def build_command(self):
-        if self.__build_command:
-            return self.__build_command
-        else:
-            return Const.BUILD_CMDS.get(1)
-
-    @build_command.setter
-    def build_command(self, cmd):
-        if self._initial in self._maven_types:
-            self.__build_command = Const.MAVEN_COMMAND
-        else:
-            self.__build_command = cmd
-    
-    def __str__(self):
-        return self._initial
-
-
 class CliInterface(object):
     MENU_OPTIONS_TO_RESET_ENV = [1, 2]
     POSITIVE_OPTION_TO_RESET = 1
@@ -117,9 +77,9 @@ class CliInterface(object):
 
         menu, indexes = self._build_menu_options(names)
 
-        user_awser = self._show_repo_menu(menu, indexes)
+        user_anwser = self._show_repo_menu(menu, indexes)
 
-        choices = set([m for r in user_awser \
+        choices = set([m for r in user_anwser \
                         for m in menu.split('\n') if r in m])
         return [repo for repo in list_repo \
                         for c in choices \
@@ -129,10 +89,10 @@ class CliInterface(object):
         menu = 'Do you want to reset your repositories branch, '+\
                 'using "git reset --hard <<branch name >>":\n'+\
                     '1 - Yes\n2 - No\nR: '
-        user_awser = self._get_only_one_awser(\
+        user_anwser = self._get_only_one_awser(\
                                         menu, self.MENU_OPTIONS_TO_RESET_ENV)
         return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_RESET \
+                if int(user_anwser) == self.POSITIVE_OPTION_TO_RESET \
                     else False
 
     def ask_type_gradle_build(self):
@@ -141,16 +101,16 @@ class CliInterface(object):
 
         menu, indexes = self._build_menu_options(cmds, key_indexes)
         
-        user_awser = int(self._get_only_one_awser(menu, indexes))
-        return Const.BUILD_CMDS.get(user_awser)
+        user_anwser = int(self._get_only_one_awser(menu, indexes))
+        return Const.BUILD_CMDS.get(user_anwser)
 
     def ask_wich_build_branch(self):
-        user_awser = input("Which branch all the repositories should to "+ \
+        user_anwser = input("Which branch all the repositories should to "+ \
                     "build?\nType only M to default branch master ou type"+ \
                     " the desired branch name:\nR: ")
         return Const.BUILD_BRANCH \
-                    if user_awser.upper() == Const.BUILD_BRANCH_OPT \
-                        else user_awser
+                    if user_anwser.upper() == Const.BUILD_BRANCH_OPT \
+                        else user_anwser
 
     def _build_menu_options(self, raw_options, indexes=None):
         menu = str()
@@ -182,12 +142,12 @@ class CliInterface(object):
                 return raw_awser
            
     def _get_only_one_awser(self, menu, indexes):
-        user_awser = None
+        user_anwser = None
         while True:
-            user_awser = input(menu)
-            if self._is_valid_awser_by_indexes(user_awser, indexes):
+            user_anwser = input(menu)
+            if self._is_valid_awser_by_indexes(user_anwser, indexes):
                 break
-        return user_awser
+        return user_anwser
     
     def _is_valid_awser_by_indexes(self, awser, indexes):
         try:
@@ -200,8 +160,41 @@ class CliInterface(object):
         return True
 
 
-if __name__ == "__main__":
+class CliInterfaceControl(object):
     
+    def __init__(self, process, list_repo):
+        self._process = process
+        self._list_repo = list_repo
+        self._cli = CliInterface()
+
+    def show(self):
+        self._show_user_menus()
+        self._execute_build()
+
+    def _show_user_menus(self):
+        self._list_repo = self._cli.ask_desired_repos(self._list_repo)
+        
+        self._process.is_to_reset = self._cli.ask_is_to_reset()
+        self._process.build_branch = self._cli.ask_wich_build_branch()
+
+        if self._process.is_build_full:
+            build_command = Const.BUILD_CMDS.get(1)
+        else:
+            build_command = self._cli.ask_type_gradle_build()
+        
+        self._apply_select_build_command(build_command)
+
+    def _execute_build(self):
+        handler = HandlerProcess(self._process)
+        print("Sucesso ...........................")
+        # handler.start_process(self._list_repo)
+    
+    def _apply_select_build_command(self, build_command):
+        for repository in self._list_repo:
+            repository.build_command = gradle_cmd
+
+
+if __name__ == "__main__":    
     setup_logger()
 
     cmd_args_proc = CommandArgsProcessor()
@@ -209,7 +202,6 @@ if __name__ == "__main__":
     process = Process()
     process.is_build_full = cmd_args_proc.is_build_full()
     process.is_clean_m2 = cmd_args_proc.is_to_clean_m2()
-    process.is_skip_menu = cmd_args_proc.is_to_skip_menu()
 
     repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
@@ -218,29 +210,15 @@ if __name__ == "__main__":
     if len(repo_paths) > 0:
         gradle_cmd = None
 
-        if not process.is_skip_menu:
-            cli = CliInterface()
-            list_repo = cli.ask_desired_repos(list_repo)
-            process.is_to_reset = cli.ask_is_to_reset()
-            process.build_branch = cli.ask_wich_build_branch()
-
-            if not process.is_build_full:
-                gradle_cmd = cli.ask_type_gradle_build()
+        if not cmd_args_proc.is_to_skip_menu():
+            cli_control = CliInterfaceControl(process, list_repo)
+            cli_control.show()
         else:
             import sys
             app = QtWidgets.QApplication(sys.argv)
             av = SetupApp(list_repo)
             av.show()
             sys.exit(app.exec_())
-
-        if not gradle_cmd:
-            gradle_cmd = Const.BUILD_CMDS.get(1)
-
-        for r in list_repo:
-            r.build_command = gradle_cmd
-
-        handler = HandlerProcess(process)
-        handler.start_process(list_repo)
     else:
         logger.error(f'Failed to read the repositories directories. '+\
             'Please make sure you had cloned all the repositories')

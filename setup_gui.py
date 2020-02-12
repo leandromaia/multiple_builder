@@ -1,7 +1,8 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QMessageBox
 from main_window import Ui_MainWindow
-from util import Const, HandlerProcess, Process
+from util import Const, HandlerProcess
+from models import Process
 
 
 class SetupApp(QtWidgets.QMainWindow):
@@ -16,6 +17,10 @@ class SetupApp(QtWidgets.QMainWindow):
         self.ui.comboBoxBuild.addItems(Const.BUILD_CMDS.values())
 
         self.ui.pushButtonExecute.clicked.connect(self.execute_process)
+        self.ui.pushButtonClose.clicked.connect(self._close)
+
+    def _close(self):
+        self.close()
 
     def _create_checkBox_from_repositories(self, repositories):
         index = 1
