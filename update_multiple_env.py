@@ -1,15 +1,12 @@
 #!/usr/bin/env python
-import argparse
-import os
-import logging
-
+import argparse, logging, os, sys
 
 from PyQt5 import QtWidgets
 
 from main_window import Ui_MainWindow
-from setup_gui import SetupApp
-from util import Const, PathHelper, HandlerProcess
 from models import Repository, Process
+from setup_gui import MainGuiController
+from core import Const, PathHelper, HandlerProcess
 
 logger = None
 
@@ -160,7 +157,7 @@ class CliInterface(object):
         return True
 
 
-class CliInterfaceControl(object):
+class CliInterfaceController(object):
     
     def __init__(self, process, list_repo):
         self._process = process
@@ -210,13 +207,12 @@ if __name__ == "__main__":
         gradle_cmd = None
 
         if not cmd_args_proc.is_to_skip_menu():
-            cli_control = CliInterfaceControl(process, list_repo)
+            cli_control = CliInterfaceController(process, list_repo)
             cli_control.show()
         else:
-            import sys
             app = QtWidgets.QApplication(sys.argv)
-            av = SetupApp(list_repo)
-            av.show()
+            gui_control = MainGuiController(process, list_repo)
+            gui_control.show()
             sys.exit(app.exec_())
     else:
         logger.error(f'Failed to read the repositories directories. '+\

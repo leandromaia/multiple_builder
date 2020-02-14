@@ -1,6 +1,6 @@
 import os
 
-from util import  Const
+from core import  Const
 
 
 class Repository(object):
