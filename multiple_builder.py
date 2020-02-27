@@ -3,9 +3,9 @@ import argparse, logging, os, sys
 
 from PyQt5 import QtWidgets
 
-from main_window import Ui_MainWindow
+from main_gui import Ui_MainWindow
 from models import Repository, Process
-from setup_gui import MainGuiController
+from gui_controller import MainGuiController
 from core import Const, PathHelper, HandlerProcess
 
 logger = None
