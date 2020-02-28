@@ -3,10 +3,10 @@ import argparse, logging, os, sys
 
 from PyQt5 import QtWidgets
 
-from main_gui import Ui_MainWindow
 from models import Repository, Process
 from gui_controller import MainGuiController
 from core import Const, PathHelper, HandlerProcess
+from gui import main_gui
 
 logger = None
 

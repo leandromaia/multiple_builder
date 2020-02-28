@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QMessageBox
 
-from main_gui import Ui_MainWindow
+from gui.main_gui import Ui_MainWindow
 from core import Const, HandlerProcess
 from models import Process
 
