@@ -7,6 +7,7 @@ from models import Repository, Process
 from gui_controller import MainGuiController
 from core import Const, PathHelper, HandlerProcess
 from gui import main_gui
+import config
 
 logger = None
 
@@ -196,11 +197,11 @@ if __name__ == "__main__":
     cmd_args_proc = CommandArgsProcessor()
 
     process = Process()
-    process.is_build_full = cmd_args_proc.is_build_full()
+    process.is_build_full = cmd_acrgs_proc.is_build_full()
     process.is_clean_m2 = cmd_args_proc.is_to_clean_m2()
 
-    repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
-
+    repo_paths = PathHelper.fetch_repo_paths(config.repo_path)
+    logger.error(f'Repo Paths {repo_paths}')
     list_repo = [Repository(r) for r in repo_paths]
 
     if len(repo_paths) > 0:

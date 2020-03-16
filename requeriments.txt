@@ -1,19 +1,26 @@
+altgraph==0.17
 backcall==0.1.0
 Click==7.0
 colorama==0.4.1
 decorator==4.4.1
+future==0.18.2
 ipdb==0.12.2
 ipython==7.9.0
 ipython-genutils==0.2.0
 jedi==0.15.1
+-e git+https://github.com/leandromaia/multiple_builder.git@fd880bf89ea13f228591d961fd0917ced7c9307b#egg=multiple_builder
 parso==0.5.1
+pefile==2019.4.18
 pickleshare==0.7.5
 prompt-toolkit==2.0.10
 Pygments==2.4.2
+PyInstaller==3.6
 PyQt5==5.13.2
 PyQt5-sip==12.7.1
 pyqt5-tools==5.13.2.1.6rc1
 python-dotenv==0.10.5
+pywin32-ctypes==0.2.0
+PyYAML==5.3
 six==1.13.0
 traitlets==4.3.3
 wcwidth==0.1.7
