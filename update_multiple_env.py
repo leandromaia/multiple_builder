@@ -28,11 +28,10 @@ class Const(object):
                             'sample_4',
                                 'sample_5',
                                     'sample_6')
+
+    
     BUILD_CMDS = {
-        1: 'gradlew clean build',
-        2: 'gradlew clean build -x test -x check -x javadoc',
-        3: 'gradlew clean jar',
-        4: 'gradlew clean install'
+        1: 'mvn clean install'
     }
     BUILD_BRANCH = 'master'
     BUILD_BRANCH_OPT = 'M'
@@ -74,7 +73,11 @@ class HandlerProcess(object):
 
     def _update_with_reset(self, repo_path):
         args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
-        self._wrapper_run_process(args_reset, repo_path)
+        try:
+            self._wrapper_run_process(args_reset, repo_path)
+        except subprocess.CalledProcessError as e:
+            logger.error(f'Failed to reset with command: {args_reset}. \
+                                                        Exception: {e}') 
 
         args_checkout = ['git', 'checkout', 'master']
         self._wrapper_run_process(args_checkout, repo_path)
