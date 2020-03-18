@@ -197,7 +197,7 @@ if __name__ == "__main__":
     cmd_args_proc = CommandArgsProcessor()
 
     process = Process()
-    process.is_build_full = cmd_acrgs_proc.is_build_full()
+    process.is_build_full = cmd_args_proc.is_build_full()
     process.is_clean_m2 = cmd_args_proc.is_to_clean_m2()
 
     repo_paths = PathHelper.fetch_repo_paths(config.repo_path)
