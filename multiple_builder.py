@@ -7,6 +7,11 @@ import shutil
 from pathlib import Path
 
 
+class BuilderProcessException(Exception):
+    "Raise when a specific command failed during the process executing"
+    pass
+
+
 logger = None
 
 def setup_logger():
@@ -16,7 +21,7 @@ def setup_logger():
     logger = logging.getLogger(__name__)
 
 
-class Const(object):
+class Const:
     PULL_UPDATED = "Already up to date"                   
     MAVEN_COMMAND = ['mvn', 'clean','install']
     PULL_UPDATED = "Already up to date"
@@ -28,34 +33,44 @@ class Const(object):
                             'sample_4',
                                 'sample_5',
                                     'sample_6')
-
     
     BUILD_CMDS = {
-        1: 'mvn clean install'
+        1: 'mvn clean install',
+        2: 'mvn clean install -T 4',
+        3: 'mvn clean install -T 4 -DskipTests',
+        4: 'mvn clean install -T 4 -DskipTests -Dmaven.javadoc.skip=true',
+        5: 'mvn clean isntall -T 4 -DskipTests -Dmaven.javadoc.skip=true -Dmaven.source.skip=true'
     }
     BUILD_BRANCH = 'master'
     BUILD_BRANCH_OPT = 'M'
 
 
-class HandlerProcess(object):
+class ProcessHandler:
 
     def __init__(self, process):
         self._process = process
 
     def start_process(self, repositories):
         self._clean_m2_project_folder()
+        is_to_build = self._check_is_process_to_build()
 
         for repo in repositories:
-            pull_result = self._update_repository(repo._absolute_path)
-            
-            if Const.PULL_UPDATED not in pull_result \
-                        or self._process.is_clean_m2 \
-                            or self._process.is_skip_menu:
+            pull_result = str()
+
+            if self._process.is_to_update:
+                pull_result = self._update_repository(repo._absolute_path)
+
+            if is_to_build or Const.PULL_UPDATED not in pull_result:
                 self._wrapper_run_process(repo.build_command, \
-                                                repo._absolute_path)
+                                                    repo._absolute_path)
             else:
-                logger.info(\
-                    f'The {repo.repo_initial} its already up to date!')
+                logger.info(f'The {repo.repo_initial} has not been built!')
+
+    def _check_is_process_to_build(self):
+        return True \
+            if self._process.is_build_all or self._process.is_clean_m2 or\
+                                                self._process.is_skip_menu\
+            else False
 
     def _clean_m2_project_folder(self):
         if self._process.is_clean_m2:
@@ -73,28 +88,29 @@ class HandlerProcess(object):
 
     def _update_with_reset(self, repo_path):
         args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
-        try:
-            self._wrapper_run_process(args_reset, repo_path)
-        except subprocess.CalledProcessError as e:
-            logger.error(f'Failed to reset with command: {args_reset}. \
-                                                        Exception: {e}') 
-
         args_checkout = ['git', 'checkout', 'master']
-        self._wrapper_run_process(args_checkout, repo_path)
-
         args_reset = ['git', 'reset', '--hard', 'origin/master']
+
+        self._wrapper_run_process(args_reset, repo_path)
+        self._wrapper_run_process(args_checkout, repo_path)
         self._wrapper_run_process(args_reset, repo_path)
 
     def _wrapper_run_process(self, command, path):
-        process = subprocess.run(command, shell=True, check=True, \
-                                    stdout=subprocess.PIPE, cwd=path, \
-                                        universal_newlines=True)
-        logger.info(f'The command: {command} to repository: {path} '+\
-                                                'has executed successfully')
-        return process.stdout
+        try:
+            process = subprocess.run(command, shell=True, check=True, \
+                                        stdout=subprocess.PIPE, cwd=path, \
+                                            universal_newlines=True)
+            logger.info(f'The command: {command} to the repository: {path} '+\
+                            f'has executed successfully')
+            return process.stdout
+        except subprocess.CalledProcessError as e:
+            raise BuilderProcessException(\
+                f'Failed executing the command: {command}. '+\
+                                f'to the repository {path} '+\
+                                    f'Exception: {e}')
 
 
-class CommandArgsProcessor(object):
+class CommandArgsProcessor:
 
     def __init__(self):
         parser = argparse.ArgumentParser(description=\
@@ -141,7 +157,7 @@ class CommandArgsProcessor(object):
         return self._parsed_args.repos_directory
 
 
-class Repository(object):
+class Repository:
     _initial = None
     _maven_types = ('JIVE', )
     __build_command = None
@@ -181,7 +197,7 @@ class Repository(object):
         return self._initial
 
 
-class PathHelper(object):
+class PathHelper:
     @staticmethod
     def delete_m2():
         absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
@@ -209,9 +225,9 @@ class PathHelper(object):
         return valid_paths
 
 
-class CliInterface(object):
-    MENU_OPTIONS_TO_RESET_ENV = [1, 2]
-    POSITIVE_OPTION_TO_RESET = 1
+class CliInterface:
+    MENU_OPTIONS_TO_ONE_ANSWER = (1, 2)
+    POSITIVE_OPTION_TO_ONE_ANSWER = 1
 
     def ask_desired_repos(self, list_repo):
         names = [r.repo_initial for r in list_repo]
@@ -228,21 +244,40 @@ class CliInterface(object):
 
     def ask_is_to_reset(self):
         menu = 'Do you want to reset your repositories branch, '+\
-                'using "git reset --hard <<branch name >>":\n'+\
+                'using "git reset --hard <<branch name >>?":\n'+\
                     '1 - Yes\n2 - No\nR: '
-        user_awser = self._get_only_one_awser(\
-                                        menu, self.MENU_OPTIONS_TO_RESET_ENV)
+        user_awser = self._get_only_one_answer(\
+                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
         return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_RESET \
+                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
                     else False
 
-    def ask_type_gradle_build(self):
+    def ask_is_to_update(self):
+        menu = 'Do you want to update all your repositories branch, '+\
+                'using "git pull":\n'+\
+                    '1 - Yes\n2 - No\nR: '
+        user_awser = self._get_only_one_answer(\
+                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
+        return True \
+                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
+                    else False
+
+    def ask_is_to_build_all(self):
+        menu = 'Do you want build all your repositories or just that'+\
+            ' has been updated?\n1 - All.\n2 - Just the updated.\nR: '
+        user_awser = self._get_only_one_answer(\
+                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
+        return True \
+                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
+                    else False
+
+    def ask_type_command_build(self):
         cmds = list(Const.BUILD_CMDS.values())
         key_indexes = list(Const.BUILD_CMDS.keys())
 
         menu, indexes = self._build_menu_options(cmds, key_indexes)
         
-        user_awser = int(self._get_only_one_awser(menu, indexes))
+        user_awser = int(self._get_only_one_answer(menu, indexes))
         return Const.BUILD_CMDS.get(user_awser)
 
     def ask_wich_build_branch(self):
@@ -277,73 +312,88 @@ class CliInterface(object):
             raw_awser = input(menu).split()
 
             for awser in raw_awser:
-                if not self._is_valid_awser_by_indexes(awser, indexes):
+                if not self._is_valid_answer_by_indexes(awser, indexes):
                     break
             else:
                 return raw_awser
            
-    def _get_only_one_awser(self, menu, indexes):
+    def _get_only_one_answer(self, menu, indexes):
         user_awser = None
         while True:
             user_awser = input(menu)
-            if self._is_valid_awser_by_indexes(user_awser, indexes):
+            if self._is_valid_answer_by_indexes(user_awser, indexes):
                 break
         return user_awser
     
-    def _is_valid_awser_by_indexes(self, awser, indexes):
+    def _is_valid_answer_by_indexes(self, answer, indexes):
         try:
-            if int(awser) not in indexes:
+            if int(answer) not in indexes:
                 raise ValueError("Failed - Not a valid index.")
         except ValueError:
-            logger.error(f'Invalid choice: {awser}. ' +\
+            logger.warning(f'Invalid choice: {answer}. ' +\
                                     'Please choose a valid option')
             return False
         return True
 
 
-class Process(object):
+class Process:
     def __init__(self):
         self.is_build_full = False
         self.is_clean_m2 = False
         self.is_to_reset = False
+        self.is_to_update = False
         self.is_skip_menu = False
+        self.is_build_all = False
         self.build_branch = Const.BUILD_BRANCH
 
 
-if __name__ == "__main__":
+def create_process_instance(command_processor):
+    process = Process()
+    process.is_build_full = command_processor.is_build_full()
+    process.is_clean_m2 = command_processor.is_to_clean_m2()
+    process.is_skip_menu = command_processor.is_to_skip_menu()
+    return process
+
+def main():
     setup_logger()
 
     cmd_args_proc = CommandArgsProcessor()
-
-    process = Process()
-    process.is_build_full = cmd_args_proc.is_build_full()
-    process.is_clean_m2 = cmd_args_proc.is_to_clean_m2()
-    process.is_skip_menu = cmd_args_proc.is_to_skip_menu()
-
+    process = create_process_instance(cmd_args_proc)
     repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
     list_repo = [Repository(r) for r in repo_paths]
 
     if len(repo_paths) > 0:
-        gradle_cmd = None
+        build_cmd = None
 
         if not process.is_skip_menu:
             cli = CliInterface()
             list_repo = cli.ask_desired_repos(list_repo)
             process.is_to_reset = cli.ask_is_to_reset()
+            process.is_to_update = cli.ask_is_to_update()
+            if process.is_to_update:
+                process.is_build_all = cli.ask_is_to_build_all()
+
             process.build_branch = cli.ask_wich_build_branch()
 
             if not process.is_build_full:
-                gradle_cmd = cli.ask_type_gradle_build()
+                build_cmd = cli.ask_type_command_build()
 
-        if not gradle_cmd:
-            gradle_cmd = Const.BUILD_CMDS.get(1)
+        if not build_cmd:
+            build_cmd = Const.BUILD_CMDS.get(1)
 
         for r in list_repo:
-            r.build_command = gradle_cmd
+            r.build_command = build_cmd
 
-        handler = HandlerProcess(process)
-        handler.start_process(list_repo)
+        try:
+            handler = ProcessHandler(process)
+            handler.start_process(list_repo)
+        except BuilderProcessException as e:
+            logger.error(e)
     else:
-        logger.error(f'Failed to read the repositories directories. '+\
-            'Please make sure you had cloned all the repositories')
+        logger.info(f'Failed to read the repositories directories. '+\
+            'Please make sure you had cloned the GIT repositories.')
+
+
+if __name__ == "__main__":
+    main()
