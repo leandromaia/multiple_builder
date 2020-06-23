@@ -22,17 +22,17 @@ def setup_logger():
 
 
 class Const:
-    PULL_UPDATED = "Already up to date"                   
-    MAVEN_COMMAND = ['mvn', 'clean','install']
     PULL_UPDATED = "Already up to date"
     
     M2_PATH = ".m2/repository/"
+
     REPO_PATHS = ('sample_1',
                     'sample_2',                    
                         'sample_3',
                             'sample_4',
                                 'sample_5',
                                     'sample_6')
+
     
     BUILD_CMDS = {
         1: 'mvn clean install',
@@ -100,12 +100,12 @@ class ProcessHandler:
             process = subprocess.run(command, shell=True, check=True, \
                                         stdout=subprocess.PIPE, cwd=path, \
                                             universal_newlines=True)
-            logger.info(f'The command: {command} to the repository: {path} '+\
+            logger.info(f'The command: "{command}" to the repository: {path} '+\
                             f'has executed successfully')
             return process.stdout
         except subprocess.CalledProcessError as e:
             raise BuilderProcessException(\
-                f'Failed executing the command: {command}. '+\
+                f'Failed executing the command: "{command}". '+\
                                 f'to the repository {path} '+\
                                     f'Exception: {e}')
 
@@ -118,9 +118,10 @@ class CommandArgsProcessor:
         parser.add_argument('-b', \
                         '--build-full', \
                         action='store_true', \
-                        help="Execute the full gradlew clean build process. \
-                            This option also skip the menu to select the \
-                            others gradle options.")
+                        help="Execute the full build command: "+\
+                            f"'{Const.BUILD_CMDS.get(1)}'. " +\
+                            "This option also skip the menu to select the \
+                            others Maven options.")
 
         parser.add_argument('-c', \
                         '--clean-m2', \
@@ -159,45 +160,46 @@ class CommandArgsProcessor:
 
 class Repository:
     _initial = None
-    _maven_types = ('JIVE', )
-    __build_command = None
+    _build_command = None
 
     def __init__(self, absolute_path):
         if os.path.isdir(absolute_path):
             self._absolute_path = absolute_path
-            self.build_initial_value()
+            self._build_initial_value()
         else:
+            # FIXME the log below is ambiguous
             logger.error(f"The directory {absolute_path} doesn't exist!!!")
             raise OSError(f"The directory {absolute_path} doesn't exist!!!")
 
-    def build_initial_value(self):
+    def _build_initial_value(self):
         self._initial = self._absolute_path.split('.')[-1].upper()
 
     @property
     def repo_initial(self):
         if not self._initial:
-            self.build_initial_value()
+            self._build_initial_value()
         return self._initial
 
     @property
     def build_command(self):
-        if self.__build_command:
-            return self.__build_command
+        if self._build_command:
+            return self._build_command
         else:
             return Const.BUILD_CMDS.get(1)
 
     @build_command.setter
     def build_command(self, cmd):
-        if self._initial in self._maven_types:
-            self.__build_command = Const.MAVEN_COMMAND
+        if cmd in Const.BUILD_CMDS:
+            self._build_command = cmd
         else:
-            self.__build_command = cmd
-    
+            raise ValueError(f"The '{cmd}' is not a valid Maven command.")
+
     def __str__(self):
         return self._initial
 
 
 class PathHelper:
+
     @staticmethod
     def delete_m2():
         absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
@@ -304,7 +306,7 @@ class CliInterface:
 
     def _show_repo_menu(self, menu, indexes):      
         print('#########################################################')
-        print('########## Build Repos - Choice Your Options ############')
+        print('######## Multiple Builder - Choice Your Options #########')
         print('#########################################################')
         while True:
             print(\
