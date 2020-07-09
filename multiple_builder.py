@@ -6,19 +6,12 @@ import subprocess
 import shutil
 from pathlib import Path
 
+logger = None
+
 
 class BuilderProcessException(Exception):
     "Raise when a specific command failed during the process executing"
     pass
-
-
-logger = None
-
-def setup_logger():
-    global logger
-    logFormatter = '> %(levelname)s - %(message)s'
-    logging.basicConfig(format=logFormatter, level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
 
 
 class Const:
@@ -32,7 +25,6 @@ class Const:
                             'sample_4',
                                 'sample_5',
                                     'sample_6')
-
     
     BUILD_CMDS = {
         1: 'mvn clean install',
@@ -349,52 +341,78 @@ class Process:
         self.build_branch = Const.BUILD_BRANCH
 
 
-def create_process_instance(command_processor):
-    process = Process()
-    process.is_build_full = command_processor.is_build_full()
-    process.is_clean_m2 = command_processor.is_to_clean_m2()
-    process.is_skip_menu = command_processor.is_to_skip_menu()
-    return process
+class BuildProcessInputs:
 
-def main():
-    setup_logger()
+    def __init__(self, command_processor, repo_paths):
+        self._command_processor = command_processor
+        self._repo_paths = repo_paths
+        self._cli = CliInterface()
 
-    cmd_args_proc = CommandArgsProcessor()
-    process = create_process_instance(cmd_args_proc)
-    repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
+    def build_list_repo(self):
+        list_repo = [Repository(r) for r in self._repo_paths]
+        list_repo = self._cli.ask_desired_repos(list_repo)
 
-    list_repo = [Repository(r) for r in repo_paths]
-
-    if len(repo_paths) > 0:
-        build_cmd = None
-
-        if not process.is_skip_menu:
-            cli = CliInterface()
-            list_repo = cli.ask_desired_repos(list_repo)
-            process.is_to_reset = cli.ask_is_to_reset()
-            process.is_to_update = cli.ask_is_to_update()
-            if process.is_to_update:
-                process.is_build_all = cli.ask_is_to_build_all()
-
-            process.build_branch = cli.ask_wich_build_branch()
-
-            if not process.is_build_full:
-                build_cmd = cli.ask_type_command_build()
-
-        if not build_cmd:
+        if not self._process:
+            self._initiate_process()
+        
+        if not self._process.is_build_full and not self._process.is_skip_menu:
+            build_cmd = self._cli.ask_type_command_build()
+        else:
             build_cmd = Const.BUILD_CMDS.get(1)
 
         for r in list_repo:
             r.build_command = build_cmd
+    
+        return list_repo
 
-        try:
-            handler = ProcessHandler(process)
-            handler.start_process(list_repo)
-        except BuilderProcessException as e:
-            logger.error(e)
-    else:
-        logger.info(f'Failed to read the repositories directories. '+\
-            'Please make sure you had cloned the GIT repositories.')
+    def build_process(self):
+        self._initiate_process()
+
+        if not self._process.is_skip_menu:
+            self._process.is_to_reset = self._cli.ask_is_to_reset()
+            self._process.is_to_update = self._cli.ask_is_to_update()
+            if self._process.is_to_update:
+                self._process.is_build_all = self._cli.ask_is_to_build_all()
+
+            self._process.build_branch = self._cli.ask_wich_build_branch()
+
+        return self._process        
+
+    def _initiate_process(self):
+        self._process = Process()
+        self._process.is_build_full = self._command_processor.is_build_full()
+        self._process.is_clean_m2 = self._command_processor.is_to_clean_m2()
+        self._process.is_skip_menu = self._command_processor.is_to_skip_menu()
+
+
+def setup_logger():
+    global logger
+    logFormatter = '> %(levelname)s - %(message)s'
+    logging.basicConfig(format=logFormatter, level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+
+def main():
+    try:
+        setup_logger()
+        cmd_args_proc = CommandArgsProcessor()
+        repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
+
+        if len(repo_paths) > 0:
+            build_inputs = BuildProcessInputs(cmd_args_proc, repo_paths)
+        
+            handler = ProcessHandler(build_inputs.build_process())
+            handler.start_process(build_inputs.build_list_repo())
+        else:
+            logger.info(f'Failed to read the repositories directories. '+\
+                'Please make sure you had cloned the GIT repositories.')
+    except KeyboardInterrupt:
+        logger.info(f'The process has finished by CTRL+C.')
+        logger.info("Exiting! Have a nice day!!!")
+    except EOFError:
+        logger.info(f'The process has finished by CTRL+Z.')
+        logger.info("Exiting! Have a nice day!!!")
+    except BuilderProcessException as e:
+        logger.error(e)
 
 
 if __name__ == "__main__":
