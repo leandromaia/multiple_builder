@@ -25,7 +25,7 @@ class Const:
                             'sample_4',
                                 'sample_5',
                                     'sample_6')
-    
+
     BUILD_CMDS = {
         1: 'mvn clean install',
         2: 'mvn clean install -T 4',
@@ -181,7 +181,7 @@ class Repository:
 
     @build_command.setter
     def build_command(self, cmd):
-        if cmd in Const.BUILD_CMDS:
+        if cmd in Const.BUILD_CMDS.values():
             self._build_command = cmd
         else:
             raise ValueError(f"The '{cmd}' is not a valid Maven command.")
@@ -269,8 +269,9 @@ class CliInterface:
         cmds = list(Const.BUILD_CMDS.values())
         key_indexes = list(Const.BUILD_CMDS.keys())
 
-        menu, indexes = self._build_menu_options(cmds, key_indexes)
-        
+        menu, indexes = self._build_menu_options(cmds, key_indexes)        
+        menu = f"Which Maven command should to use in build process:\n{menu}"
+
         user_awser = int(self._get_only_one_answer(menu, indexes))
         return Const.BUILD_CMDS.get(user_awser)
 
@@ -343,27 +344,10 @@ class Process:
 
 class BuildProcessInputs:
 
-    def __init__(self, command_processor, repo_paths):
+    def __init__(self, cli, command_processor, repo_paths):
+        self._cli = cli
         self._command_processor = command_processor
-        self._repo_paths = repo_paths
-        self._cli = CliInterface()
-
-    def build_list_repo(self):
-        list_repo = [Repository(r) for r in self._repo_paths]
-        list_repo = self._cli.ask_desired_repos(list_repo)
-
-        if not self._process:
-            self._initiate_process()
-        
-        if not self._process.is_build_full and not self._process.is_skip_menu:
-            build_cmd = self._cli.ask_type_command_build()
-        else:
-            build_cmd = Const.BUILD_CMDS.get(1)
-
-        for r in list_repo:
-            r.build_command = build_cmd
-    
-        return list_repo
+        self._build_repositories(repo_paths)
 
     def build_process(self):
         self._initiate_process()
@@ -371,18 +355,37 @@ class BuildProcessInputs:
         if not self._process.is_skip_menu:
             self._process.is_to_reset = self._cli.ask_is_to_reset()
             self._process.is_to_update = self._cli.ask_is_to_update()
+
             if self._process.is_to_update:
                 self._process.is_build_all = self._cli.ask_is_to_build_all()
 
             self._process.build_branch = self._cli.ask_wich_build_branch()
 
-        return self._process        
+            self._format_repositories()
 
     def _initiate_process(self):
         self._process = Process()
         self._process.is_build_full = self._command_processor.is_build_full()
         self._process.is_clean_m2 = self._command_processor.is_to_clean_m2()
         self._process.is_skip_menu = self._command_processor.is_to_skip_menu()
+
+    def _build_repositories(self, repo_paths):
+        self._list_repo = [Repository(r) for r in repo_paths]
+        self._list_repo = self._cli.ask_desired_repos(self._list_repo)
+
+    def _format_repositories(self):
+        if not self._process.is_build_full and not self._process.is_skip_menu:
+            build_cmd = self._cli.ask_type_command_build()
+        else:
+            build_cmd = Const.BUILD_CMDS.get(1)
+
+        for r in self._list_repo:
+            r.build_command = build_cmd        
+
+    @property
+    def repositories(self):
+        if self._list_repo:
+            return self._list_repo
 
 
 def setup_logger():
@@ -398,10 +401,11 @@ def main():
         repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
         if len(repo_paths) > 0:
-            build_inputs = BuildProcessInputs(cmd_args_proc, repo_paths)
-        
+            cli = CliInterface()
+            build_inputs = BuildProcessInputs(cli, cmd_args_proc, repo_paths)
+
             handler = ProcessHandler(build_inputs.build_process())
-            handler.start_process(build_inputs.build_list_repo())
+            handler.start_process(build_inputs.repositories)
         else:
             logger.info(f'Failed to read the repositories directories. '+\
                 'Please make sure you had cloned the GIT repositories.')
