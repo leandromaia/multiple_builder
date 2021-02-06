@@ -10,7 +10,7 @@ logger = None
 
 
 class BuilderProcessException(Exception):
-    "Raise when a specific command failed during the process executing"
+    "Raise a found error during the Multiple Builder process executing"
     pass
 
 
@@ -102,52 +102,7 @@ class ProcessHandler:
                                     f'Exception: {e}')
 
 
-class CommandArgsProcessor:
 
-    def __init__(self):
-        parser = argparse.ArgumentParser(description=\
-                        '>>>>> Options to update and build projects! <<<<<')
-        parser.add_argument('-b', \
-                        '--build-full', \
-                        action='store_true', \
-                        help="Execute the full build command: "+\
-                            f"'{Const.BUILD_CMDS.get(1)}'. " +\
-                            "This option also skip the menu to select the \
-                            others Maven options.")
-
-        parser.add_argument('-c', \
-                        '--clean-m2', \
-                        action='store_true', \
-                        help="Delete all folders and files from project \
-                            m2 folder.")
-
-        parser.add_argument('-d', \
-                        '--repos-directory', \
-                        help='Add your repositories absolute path. If this \
-                            parameter is not passed the script absolute path \
-                            will be consider as the root path to find the \
-                            repositories folder.')
-
-        parser.add_argument('-sm', \
-                        '--skip-menu', \
-                        action='store_true', \
-                        help='Skip visualization of the CLI User Menu. \
-                            Passing this option all the found repositories \
-                            will be update and build automatically.')
-        self._parsed_args = parser.parse_args()
-    
-    def is_build_full(self):
-        return self._parsed_args.build_full
-
-    def is_to_clean_m2(self):
-        return self._parsed_args.clean_m2
-
-    def is_to_skip_menu(self):
-        return self._parsed_args.skip_menu
-
-    @property
-    def repos_directory(self):
-        return self._parsed_args.repos_directory
 
 
 class Repository:
@@ -388,16 +343,90 @@ class BuildProcessInputs:
             return self._list_repo
 
 
+
+from typing import TypedDict, Text
+
+
+class CommandArgument(TypedDict):
+    """A command argument for the Command Args Processor.
+
+    Attributes:
+        flag: The flag identify of the CommandArgument.
+        name: The body of the CommandArgument, also used as a command
+                method identify.
+        action: The action for the CommandArgument.
+        help: Text description that helps the usage for th command.
+    """
+    flag: Text
+    name: Text
+    action: Text
+    help: Text
+
+
+
+
+#FIXME See: https://github.com/zedr/clean-code-python
+class CommandArgsProcessor:
+
+    def __init__(self):
+        parser = argparse.ArgumentParser(description=\
+                        '>>>>> Options to update and build projects! <<<<<')
+        parser.add_argument('-b', \
+                        '--build-full', \
+                        action='store_true', \
+                        help="Execute the full build command: "+\
+                            f"'{Const.BUILD_CMDS.get(1)}'. " +\
+                            "This option also skip the menu to select the \
+                            others Maven options.")
+
+        parser.add_argument('-c', \
+                        '--clean-m2', \
+                        action='store_true', \
+                        help="Delete all folders and files from project \
+                            m2 folder.")
+
+        parser.add_argument('-d', \
+                        '--repos-directory', \
+                        help='Add your repositories absolute path. If this \
+                            parameter is not passed the script absolute path \
+                            will be consider as the root path to find the \
+                            repositories folder.')
+
+        parser.add_argument('-sm', \
+                        '--skip-menu', \
+                        action='store_true', \
+                        help='Skip visualization of the CLI User Menu. \
+                            Passing this option all the found repositories \
+                            will be update and build automatically.')
+        self._parsed_args = parser.parse_args()
+    
+    def is_build_full(self):
+        return self._parsed_args.build_full
+
+    def is_to_clean_m2(self):
+        return self._parsed_args.clean_m2
+
+    def is_to_skip_menu(self):
+        return self._parsed_args.skip_menu
+
+    @property
+    def repos_directory(self):
+        return self._parsed_args.repos_directory
+
+
 def setup_logger():
     global logger
     logFormatter = '> %(levelname)s - %(message)s'
     logging.basicConfig(format=logFormatter, level=logging.DEBUG)
     logger = logging.getLogger(__name__)
 
-def main():
+
+def start_build():
     try:
         setup_logger()
+
         cmd_args_proc = CommandArgsProcessor()
+
         repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
         if len(repo_paths) > 0:
@@ -407,8 +436,10 @@ def main():
             handler = ProcessHandler(build_inputs.build_process())
             handler.start_process(build_inputs.repositories)
         else:
-            logger.info(f'Failed to read the repositories directories. '+\
-                'Please make sure you had cloned the GIT repositories.')
+            raise BuilderProcessException(\
+                f'Failed to read the repositories directories.'+\
+                    'Please make sure you had cloned the GIT repositories.')
+
     except KeyboardInterrupt:
         logger.info(f'The process has finished by CTRL+C.')
         logger.info("Exiting! Have a nice day!!!")
@@ -420,4 +451,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    start_build()
