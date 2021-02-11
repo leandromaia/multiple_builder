@@ -4,7 +4,10 @@ import os
 import logging
 import subprocess
 import shutil
+
 from pathlib import Path
+from typing import TypedDict, Text
+
 
 logger = None
 
@@ -100,9 +103,6 @@ class ProcessHandler:
                 f'Failed executing the command: "{command}". '+\
                                 f'to the repository {path} '+\
                                     f'Exception: {e}')
-
-
-
 
 
 class Repository:
@@ -343,19 +343,15 @@ class BuildProcessInputs:
             return self._list_repo
 
 
-
-from typing import TypedDict, Text
-
-
 class CommandArgument(TypedDict):
     """A command argument for the Command Args Processor.
 
     Attributes:
         flag: The flag identify of the CommandArgument.
-        name: The body of the CommandArgument, also used as a command
-                method identify.
+        name: The body of the CommandArgument, also used as
+                a command method identify.
         action: The action for the CommandArgument.
-        help: Text description that helps the usage for th command.
+        help: Text description that helps the usage of the command.
     """
     flag: Text
     name: Text
@@ -363,50 +359,101 @@ class CommandArgument(TypedDict):
     help: Text
 
 
-
-
-#FIXME See: https://github.com/zedr/clean-code-python
 class CommandArgsProcessor:
+    ACTION_STORE_TRUE = "store_true"
+    ARGUMENT_PARSER_DESCRIPTION = \
+                        '>>>>> Options to update and build projects! <<<<<'
+    BUILD_FLAG = "-b"
+    BUILD_NAME = "--build-full"
+    BUILD_HELP = "Execute the full build command: "+\
+                    f"'{Const.BUILD_CMDS.get(1)}'. " +\
+                    "This option also skip the menu to select the \
+                    others Maven options."
+    CLEAN_M2_FLAG = "-c"
+    CLEAN_M2_NAME = "--clean-m2"
+    CLEAN_M2_HELP = "Delete all folders and files from project m2 folder."
+
+    REPOS_DIR_FLAG = "-d"
+    REPOS_DIR_NAME = "--repos-directory"
+    REPOS_DIR_HELP = "Add your repositories absolute path. If this \
+                        parameter is not passed the script absolute path \
+                        will be consider as the root path to find the \
+                        repositories folder."
+
+    SKIP_MENU_FLAG = "-sm"
+    SKIP_MENU_NAME = "--skip-menu"
+    SKIP_MENU_HELP = "Skip visualization of the CLI User Menu. \
+                        Passing this option all the found repositories \
+                        will be update and build automatically."
 
     def __init__(self):
-        parser = argparse.ArgumentParser(description=\
-                        '>>>>> Options to update and build projects! <<<<<')
-        parser.add_argument('-b', \
-                        '--build-full', \
-                        action='store_true', \
-                        help="Execute the full build command: "+\
-                            f"'{Const.BUILD_CMDS.get(1)}'. " +\
-                            "This option also skip the menu to select the \
-                            others Maven options.")
+        parser = self._initiate_parser()
 
-        parser.add_argument('-c', \
-                        '--clean-m2', \
-                        action='store_true', \
-                        help="Delete all folders and files from project \
-                            m2 folder.")
+        arg_list = self._create_arguments()
 
-        parser.add_argument('-d', \
-                        '--repos-directory', \
-                        help='Add your repositories absolute path. If this \
-                            parameter is not passed the script absolute path \
-                            will be consider as the root path to find the \
-                            repositories folder.')
-
-        parser.add_argument('-sm', \
-                        '--skip-menu', \
-                        action='store_true', \
-                        help='Skip visualization of the CLI User Menu. \
-                            Passing this option all the found repositories \
-                            will be update and build automatically.')
+        self._populate_args(arg_list, parser)
         self._parsed_args = parser.parse_args()
+
+    def _initiate_parser(self):
+        return argparse.ArgumentParser(description=\
+                                            self.ARGUMENT_PARSER_DESCRIPTION)
+    
+    def _create_arguments(self):
+        arg_list = list()
+
+        build_full = CommandArgument(
+            flag = self.BUILD_FLAG,
+            name = self.BUILD_NAME,
+            action = self.ACTION_STORE_TRUE,
+            help = self.BUILD_HELP
+        )
+
+        clean_m2 = CommandArgument(
+            flag = self.CLEAN_M2_FLAG,
+            name = self.CLEAN_M2_NAME,
+            action = self.ACTION_STORE_TRUE,
+            help = self.CLEAN_M2_HELP
+        )
+
+        repos_dir = CommandArgument(
+            flag = self.REPOS_DIR_FLAG,
+            name = self.REPOS_DIR_NAME,
+            action = '',
+            help = self.REPOS_DIR_HELP
+        )
+
+        skip_menu = CommandArgument(
+            flag = self.SKIP_MENU_FLAG,
+            name = self.SKIP_MENU_NAME,
+            action = self.ACTION_STORE_TRUE,
+            help = self.SKIP_MENU_HELP
+        )
+
+        arg_list.append(build_full)
+        arg_list.append(clean_m2)
+        arg_list.append(repos_dir)
+        arg_list.append(skip_menu)
+
+        return arg_list
+
+
+    def _populate_args(self, arg_list, parser):
+        for arg in arg_list:
+            parser.add_argument(arg.flag,
+                        arg.name,
+                        action=arg.action,
+                        help=arg.help)   
     
     def is_build_full(self):
+        """Returns True if the build must be full or False is not."""
         return self._parsed_args.build_full
 
     def is_to_clean_m2(self):
+        """Returns True for to clean the Maven m2 folder or False is not."""
         return self._parsed_args.clean_m2
 
     def is_to_skip_menu(self):
+        """Returns True for to skip the menu or False is not."""
         return self._parsed_args.skip_menu
 
     @property
