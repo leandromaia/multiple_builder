@@ -22,12 +22,12 @@ class Const:
     
     M2_PATH = ".m2/repository/"
 
-    REPO_PATHS = ('sample_1',
-                    'sample_2',                    
-                        'sample_3',
-                            'sample_4',
-                                'sample_5',
-                                    'sample_6')
+    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
+                'com.ericsson.bss.ael.aep.plugins',
+                        'com.ericsson.bss.ael.bae',
+                        'com.ericsson.bss.ael.dae',
+                            'com.ericsson.bss.ael.jive',
+                                    'com.ericsson.bss.ael.aep.sdk')
 
     BUILD_CMDS = {
         1: 'mvn clean install',
@@ -149,29 +149,56 @@ class PathHelper:
 
     @staticmethod
     def delete_m2():
-        absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
-        
-        if absolute_m2_path.is_dir():
-            try:
-                shutil.rmtree(absolute_m2_path)
-                logger.info(f"The m2 folder: {absolute_m2_path} "+\
-                                            "has deleted sucessfully")
-            except OSError:
-                logger.error(f'Process to delete folders and files from ' + \
-                                        f'{absolute_m2_path} has failed.')
-        else:
-            logger.warning(f'Is not possible to clean the M2 project. ' +\
-                    f'The path {absolute_m2_path} is not a valid directory')
-    
+        """Delete all the folders and files from the Maven m2 folder"""
+        m2_path = PathHelper._get_m2_path()
+
+        PathHelper._validate_directory(m2_path)
+
+        try:
+            shutil.rmtree(m2_path)
+
+            logger.info(f"The m2 folder: {m2_path} "+\
+                                        "has been deleted successfully")
+        except OSError:
+            raise BuilderProcessException(\
+                f'Process to delete folders and files from ' + \
+                                f'{m2_path} has failed.')
+
+    @staticmethod
+    def _validate_directory(directory_path):
+        if not directory_path.is_dir():
+            raise BuilderProcessException(\
+                f'Is not possible to clean the M2 project. The path '+\
+                            f'{directory_path} is not a valid directory')
+
+    @staticmethod
+    def _get_m2_path():
+        return Path.joinpath(Path.home(), Const.M2_PATH)
+
     @staticmethod
     def fetch_repo_paths(root_path):
-        if not root_path:
-            root_path = os.getcwd()
+        """Process the root path and extract all valid repository paths
+        from the root path."""
+        root_path = PathHelper._get_root_path(root_path)
 
-        all = [f.path for f in os.scandir(root_path) if f.is_dir()]
-        valid_paths = [a for a in all \
-                            for r in Const.REPO_PATHS if a.endswith(r)]
+        all_paths = PathHelper._extract_all_paths(root_path)
+
+        valid_paths = PathHelper._extract_valid_repo_paths(all_paths)
+
         return valid_paths
+
+    @staticmethod
+    def _get_root_path(root_path):
+        return os.getcwd() if not root_path else root_path
+
+    @staticmethod
+    def _extract_all_paths(root_path):
+        return [f.path for f in os.scandir(root_path) if f.is_dir()]
+
+    @staticmethod
+    def _extract_valid_repo_paths(all_paths):
+        return [a for a in all_paths \
+                    for r in Const.REPO_PATHS if a.endswith(r)]
 
 
 class CliInterface:
@@ -362,13 +389,15 @@ class CommandArgument(TypedDict):
 class CommandArgsProcessor:
     ACTION_STORE_TRUE = "store_true"
     ARGUMENT_PARSER_DESCRIPTION = \
-                        '>>>>> Options to update and build projects! <<<<<'
+                        ">>>>> Options to update and build projects! <<<<<"
+
     BUILD_FLAG = "-b"
     BUILD_NAME = "--build-full"
     BUILD_HELP = "Execute the full build command: "+\
                     f"'{Const.BUILD_CMDS.get(1)}'. " +\
                     "This option also skip the menu to select the \
                     others Maven options."
+
     CLEAN_M2_FLAG = "-c"
     CLEAN_M2_NAME = "--clean-m2"
     CLEAN_M2_HELP = "Delete all folders and files from project m2 folder."
@@ -418,7 +447,7 @@ class CommandArgsProcessor:
         repos_dir = CommandArgument(
             flag = self.REPOS_DIR_FLAG,
             name = self.REPOS_DIR_NAME,
-            action = '',
+            action = self.ACTION_STORE_TRUE,
             help = self.REPOS_DIR_HELP
         )
 
@@ -436,13 +465,12 @@ class CommandArgsProcessor:
 
         return arg_list
 
-
     def _populate_args(self, arg_list, parser):
         for arg in arg_list:
-            parser.add_argument(arg.flag,
-                        arg.name,
-                        action=arg.action,
-                        help=arg.help)   
+            parser.add_argument(arg.get('flag'),
+                        arg.get('name'),
+                        action=arg.get('action', None),
+                        help=arg.get('help'))
     
     def is_build_full(self):
         """Returns True if the build must be full or False is not."""
@@ -473,6 +501,7 @@ def start_build():
         setup_logger()
 
         cmd_args_proc = CommandArgsProcessor()
+        import pdb; pdb.set_trace()
 
         repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
@@ -481,7 +510,7 @@ def start_build():
             build_inputs = BuildProcessInputs(cli, cmd_args_proc, repo_paths)
 
             handler = ProcessHandler(build_inputs.build_process())
-            handler.start_process(build_inputs.repositories)
+            # handler.start_process(build_inputs.repositories)
         else:
             raise BuilderProcessException(\
                 f'Failed to read the repositories directories.'+\
@@ -494,7 +523,7 @@ def start_build():
         logger.info(f'The process has finished by CTRL+Z.')
         logger.info("Exiting! Have a nice day!!!")
     except BuilderProcessException as e:
-        logger.error(e)
+        logger.error(e, exc_info=True)
 
 
 if __name__ == "__main__":
