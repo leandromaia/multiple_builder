@@ -370,7 +370,7 @@ class BuildProcessInputs:
             return self._list_repo
 
 
-class CommandArgument(TypedDict):
+class CommandArgument(TypedDict, total=False):
     """A command argument for the Command Args Processor.
 
     Attributes:
@@ -447,7 +447,6 @@ class CommandArgsProcessor:
         repos_dir = CommandArgument(
             flag = self.REPOS_DIR_FLAG,
             name = self.REPOS_DIR_NAME,
-            action = self.ACTION_STORE_TRUE,
             help = self.REPOS_DIR_HELP
         )
 
@@ -501,9 +500,10 @@ def start_build():
         setup_logger()
 
         cmd_args_proc = CommandArgsProcessor()
-        import pdb; pdb.set_trace()
 
         repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
+
+        PathHelper.delete_m2()
 
         if len(repo_paths) > 0:
             cli = CliInterface()
