@@ -152,7 +152,7 @@ class PathHelper:
         """Delete all the folders and files from the Maven m2 folder"""
         m2_path = PathHelper._get_m2_path()
 
-        PathHelper._validate_directory(m2_path)
+        PathHelper._validate_m2_path(m2_path)
 
         try:
             shutil.rmtree(m2_path)
@@ -165,11 +165,11 @@ class PathHelper:
                                 f'{m2_path} has failed.')
 
     @staticmethod
-    def _validate_directory(directory_path):
-        if not directory_path.is_dir():
+    def _validate_m2_path(m2_path):
+        if not m2_path.is_dir():
             raise BuilderProcessException(\
                 f'Is not possible to clean the M2 project. The path '+\
-                            f'{directory_path} is not a valid directory')
+                            f'{m2_path} is not a valid directory')
 
     @staticmethod
     def _get_m2_path():
@@ -181,18 +181,20 @@ class PathHelper:
         from the root path."""
         root_path = PathHelper._get_root_path(root_path)
 
-        all_paths = PathHelper._extract_all_paths(root_path)
+        raw_paths = PathHelper._extract_directories_from_path(root_path)
 
-        valid_paths = PathHelper._extract_valid_repo_paths(all_paths)
+        valid_repo_paths = PathHelper._extract_valid_repo_paths(raw_paths)
 
-        return valid_paths
+        PathHelper._check_has_valid_repo_paths(valid_repo_paths)
+
+        return valid_repo_paths
 
     @staticmethod
     def _get_root_path(root_path):
         return os.getcwd() if not root_path else root_path
 
     @staticmethod
-    def _extract_all_paths(root_path):
+    def _extract_directories_from_path(root_path):
         return [f.path for f in os.scandir(root_path) if f.is_dir()]
 
     @staticmethod
@@ -200,10 +202,34 @@ class PathHelper:
         return [a for a in all_paths \
                     for r in Const.REPO_PATHS if a.endswith(r)]
 
+    @staticmethod
+    def _check_has_valid_repo_paths(repo_paths):
+        if len(repo_paths) == 0:
+            raise BuilderProcessException(\
+                f'Failed to read the repositories directories.'+\
+                    'Please make sure you had cloned the GIT repositories.')
+
 
 class CliInterface:
     MENU_OPTIONS_TO_ONE_ANSWER = (1, 2)
     POSITIVE_OPTION_TO_ONE_ANSWER = 1
+
+    def __init__(self, cmd_arg_processor):
+        self._is_build_full = cmd_arg_processor.is_build_full()
+        self._is_clean_m2 = cmd_arg_processor.is_to_clean_m2()
+        self._is_skip_menu = cmd_arg_processor.is_to_skip_menu()
+
+    @property
+    def is_build_full(self):
+        return self._is_build_full
+
+    @property
+    def is_clean_m2(self):
+        return self._is_clean_m2
+
+    @property
+    def is_skip_menu(self):
+        return self._is_skip_menu
 
     def ask_desired_repos(self, list_repo):
         names = [r.repo_initial for r in list_repo]
@@ -326,9 +352,8 @@ class Process:
 
 class BuildProcessInputs:
 
-    def __init__(self, cli, command_processor, repo_paths):
+    def __init__(self, cli, repo_paths):
         self._cli = cli
-        self._command_processor = command_processor
         self._build_repositories(repo_paths)
 
     def build_process(self):
@@ -347,9 +372,9 @@ class BuildProcessInputs:
 
     def _initiate_process(self):
         self._process = Process()
-        self._process.is_build_full = self._command_processor.is_build_full()
-        self._process.is_clean_m2 = self._command_processor.is_to_clean_m2()
-        self._process.is_skip_menu = self._command_processor.is_to_skip_menu()
+        self._process.is_build_full = self._cli.is_build_full
+        self._process.is_clean_m2 = self._cli.is_to_clean_m2
+        self._process.is_skip_menu = self._cli.is_to_skip_menu
 
     def _build_repositories(self, repo_paths):
         self._list_repo = [Repository(r) for r in repo_paths]
@@ -502,25 +527,19 @@ def start_build():
         cmd_args_proc = CommandArgsProcessor()
 
         repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
-
-        PathHelper.delete_m2()
-
-        if len(repo_paths) > 0:
-            cli = CliInterface()
-            build_inputs = BuildProcessInputs(cli, cmd_args_proc, repo_paths)
-
-            handler = ProcessHandler(build_inputs.build_process())
-            # handler.start_process(build_inputs.repositories)
-        else:
-            raise BuilderProcessException(\
-                f'Failed to read the repositories directories.'+\
-                    'Please make sure you had cloned the GIT repositories.')
+        
+        cli = CliInterface(cmd_args_proc)
+        #TODO fix the BuildProcessInput returns in build_process method
+        build_inputs = BuildProcessInputs(cli, repo_paths)
+              
+        handler = ProcessHandler(build_inputs.build_process())
+        # handler.start_process(build_inputs.repositories)
 
     except KeyboardInterrupt:
         logger.info(f'The process has finished by CTRL+C.')
         logger.info("Exiting! Have a nice day!!!")
     except EOFError:
-        logger.info(f'The process has finished by CTRL+Z.')
+        logger.info(f'The process has finished by Caa TRL+Z.')
         logger.info("Exiting! Have a nice day!!!")
     except BuilderProcessException as e:
         logger.error(e, exc_info=True)
