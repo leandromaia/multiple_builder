@@ -61,12 +61,6 @@ class ProcessHandler:
             else:
                 logger.info(f'The {repo.repo_initial} has not been built!')
 
-    def _check_is_process_to_build(self):
-        return True \
-            if self._process.is_build_all or self._process.is_clean_m2 or\
-                                                self._process.is_skip_menu\
-            else False
-
     def _clean_m2_project_folder(self):
         if self._process.is_clean_m2:
             PathHelper.delete_m2()
@@ -80,6 +74,12 @@ class ProcessHandler:
         
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
+
+    def _check_is_process_to_build(self):
+        return True \
+            if self._process.is_build_all or self._process.is_clean_m2 or\
+                                                self._process.is_skip_menu\
+            else False
 
     def _update_with_reset(self, repo_path):
         args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
@@ -213,6 +213,9 @@ class PathHelper:
 class CliInterface:
     MENU_OPTIONS_TO_ONE_ANSWER = (1, 2)
     POSITIVE_OPTION_TO_ONE_ANSWER = 1
+    HEADER_MESSAGE = '#######################################################'\
+                +'\n####### Multiple Builder - Choice Your Options ########'\
+            +'\n#######################################################'
 
     def __init__(self, cmd_arg_processor):
         self._is_build_full = cmd_arg_processor.is_build_full()
@@ -232,9 +235,9 @@ class CliInterface:
         return self._is_skip_menu
 
     def ask_desired_repos(self, list_repo):
-        names = [r.repo_initial for r in list_repo]
+        repo_names = self._extract_repo_names(list_repo)
 
-        menu, indexes = self._build_menu_options(names)
+        menu, indexes = self._build_menu_options(repo_names)
 
         user_awser = self._show_repo_menu(menu, indexes)
 
@@ -244,6 +247,37 @@ class CliInterface:
                         for c in choices \
                             if c.endswith(repo.repo_initial)]
 
+    def _extract_repo_names(self, list_repo):
+        return [r.repo_initial for r in list_repo]
+
+    def _build_menu_options(self, raw_options, indexes=None):
+        menu = str()
+        list_index = None
+        if indexes:
+            list_index = indexes
+        else:
+            list_index = [* range(1, len(raw_options) + 1)]
+
+        for i in range(len(raw_options)):
+            menu = menu + f'{list_index[i]} - {raw_options[i]}\n'
+        else:
+            menu = menu + 'R: '
+        return menu, list_index
+
+    def _show_repo_menu(self, menu, indexes):      
+        print(self.HEADER_MESSAGE)
+        
+        while True:
+            print(\
+                'You can select more than one options adding space between them:')
+            raw_awser = input(menu).split()
+
+            for awser in raw_awser:
+                if not self._is_valid_answer_by_indexes(awser, indexes):
+                    break
+            else:
+                return raw_awser
+    
     def ask_is_to_reset(self):
         menu = 'Do you want to reset your repositories branch, '+\
                 'using "git reset --hard <<branch name >>?":\n'+\
@@ -291,34 +325,9 @@ class CliInterface:
                     if user_awser.upper() == Const.BUILD_BRANCH_OPT \
                         else user_awser
 
-    def _build_menu_options(self, raw_options, indexes=None):
-        menu = str()
-        list_index = None
-        if indexes:
-            list_index = indexes
-        else:
-            list_index = [* range(1, len(raw_options) + 1)]
+    
 
-        for i in range(len(raw_options)):
-            menu = menu + f'{list_index[i]} - {raw_options[i]}\n'
-        else:
-            menu = menu + 'R: '
-        return menu, list_index
-
-    def _show_repo_menu(self, menu, indexes):      
-        print('#########################################################')
-        print('######## Multiple Builder - Choice Your Options #########')
-        print('#########################################################')
-        while True:
-            print(\
-                'You can select more than one options adding space between them:')
-            raw_awser = input(menu).split()
-
-            for awser in raw_awser:
-                if not self._is_valid_answer_by_indexes(awser, indexes):
-                    break
-            else:
-                return raw_awser
+    
            
     def _get_only_one_answer(self, menu, indexes):
         user_awser = None
@@ -356,6 +365,10 @@ class BuildProcessInputs:
         self._cli = cli
         self._build_repositories(repo_paths)
 
+    def _build_repositories(self, repo_paths):
+        self._list_repo = [Repository(r) for r in repo_paths]
+        self._list_repo = self._cli.ask_desired_repos(self._list_repo)
+
     def build_process(self):
         self._initiate_process()
 
@@ -375,10 +388,6 @@ class BuildProcessInputs:
         self._process.is_build_full = self._cli.is_build_full
         self._process.is_clean_m2 = self._cli.is_to_clean_m2
         self._process.is_skip_menu = self._cli.is_to_skip_menu
-
-    def _build_repositories(self, repo_paths):
-        self._list_repo = [Repository(r) for r in repo_paths]
-        self._list_repo = self._cli.ask_desired_repos(self._list_repo)
 
     def _format_repositories(self):
         if not self._process.is_build_full and not self._process.is_skip_menu:
