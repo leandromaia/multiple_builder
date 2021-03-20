@@ -237,7 +237,7 @@ class CliInterface:
     def ask_desired_repos(self, list_repo):
         repo_names = self._extract_repo_names(list_repo)
 
-        menu, indexes = self._build_menu_options(repo_names)
+        menu, indexes = self._build_menu_options_with_indexes(repo_names)
 
         user_awser = self._show_repo_menu(menu, indexes)
 
@@ -250,22 +250,28 @@ class CliInterface:
     def _extract_repo_names(self, list_repo):
         return [r.repo_initial for r in list_repo]
 
-    def _build_menu_options(self, raw_options, indexes=None):
-        menu = str()
-        list_index = None
-        if indexes:
-            list_index = indexes
-        else:
-            list_index = [* range(1, len(raw_options) + 1)]
+    def _build_menu_options_with_indexes(self, options, index_values=None):
+        indexes = self._build_indexes(index_values, options)
+        menu = self._build_menu(indexes, options)
 
-        for i in range(len(raw_options)):
-            menu = menu + f'{list_index[i]} - {raw_options[i]}\n'
-        else:
-            menu = menu + 'R: '
-        return menu, list_index
+        return menu, indexes
+
+    def _build_indexes(self, index_values, options):
+        return index_values \
+                if index_values \
+                    else [* range(1, len(options) + 1)]
+
+    def _build_menu(self, indexes, options):
+        menu = str()
+
+        for index, option in zip(indexes, options):
+            menu = f'{menu}{index} - {option}\n'
+
+        menu = menu + 'R: '
+        return menu
 
     def _show_repo_menu(self, menu, indexes):      
-        print(self.HEADER_MESSAGE)
+        self._show_message(self.HEADER_MESSAGE)
         
         while True:
             print(\
@@ -277,7 +283,10 @@ class CliInterface:
                     break
             else:
                 return raw_awser
-    
+
+    def _show_message(self, message):
+        print(message)
+
     def ask_is_to_reset(self):
         menu = 'Do you want to reset your repositories branch, '+\
                 'using "git reset --hard <<branch name >>?":\n'+\
@@ -311,7 +320,8 @@ class CliInterface:
         cmds = list(Const.BUILD_CMDS.values())
         key_indexes = list(Const.BUILD_CMDS.keys())
 
-        menu, indexes = self._build_menu_options(cmds, key_indexes)        
+        menu, indexes = self._build_menu_options_with_indexes(cmds, key_indexes)
+
         menu = f"Which Maven command should to use in build process:\n{menu}"
 
         user_awser = int(self._get_only_one_answer(menu, indexes))
@@ -323,11 +333,7 @@ class CliInterface:
                     " the desired branch name:\nR: ")
         return Const.BUILD_BRANCH \
                     if user_awser.upper() == Const.BUILD_BRANCH_OPT \
-                        else user_awser
-
-    
-
-    
+                        else user_awser   
            
     def _get_only_one_answer(self, menu, indexes):
         user_awser = None
