@@ -213,9 +213,11 @@ class PathHelper:
 class CliInterface:
     MENU_OPTIONS_TO_ONE_ANSWER = (1, 2)
     POSITIVE_OPTION_TO_ONE_ANSWER = 1
-    HEADER_MESSAGE = '#######################################################'\
+    HEADER_MSG = '#######################################################'\
                 +'\n####### Multiple Builder - Choice Your Options ########'\
             +'\n#######################################################'
+    CHOICE_REPO_MSG = \
+            'You can select more than one options adding space between them:'
 
     def __init__(self, cmd_arg_processor):
         self._is_build_full = cmd_arg_processor.is_build_full()
@@ -234,32 +236,22 @@ class CliInterface:
     def is_skip_menu(self):
         return self._is_skip_menu
 
-    def ask_desired_repos(self, list_repo):
+    def request_desired_repos(self, list_repo):
         repo_names = self._extract_repo_names(list_repo)
+        
+        indexes = self._build_indexes(repo_names)
+        menu = self._build_menu(indexes, repo_names)
 
-        menu, indexes = self._build_menu_options_with_indexes(repo_names)
+        repos = self._request_repo_to_build(menu, indexes)
+        repos = self._extract_valid_repo(menu, repos)
 
-        user_awser = self._show_repo_menu(menu, indexes)
-
-        choices = set([m for r in user_awser \
-                        for m in menu.split('\n') if r in m])
-        return [repo for repo in list_repo \
-                        for c in choices \
-                            if c.endswith(repo.repo_initial)]
+        return self._consolidate_valid_repos(list_repo, repos)
 
     def _extract_repo_names(self, list_repo):
         return [r.repo_initial for r in list_repo]
 
-    def _build_menu_options_with_indexes(self, options, index_values=None):
-        indexes = self._build_indexes(index_values, options)
-        menu = self._build_menu(indexes, options)
-
-        return menu, indexes
-
-    def _build_indexes(self, index_values, options):
-        return index_values \
-                if index_values \
-                    else [* range(1, len(options) + 1)]
+    def _build_indexes(self, options):
+        return [* range(1, len(options) + 1)]
 
     def _build_menu(self, indexes, options):
         menu = str()
@@ -270,22 +262,41 @@ class CliInterface:
         menu = menu + 'R: '
         return menu
 
-    def _show_repo_menu(self, menu, indexes):      
-        self._show_message(self.HEADER_MESSAGE)
+    def _request_repo_to_build(self, menu, indexes):      
+        self._show_message(self.HEADER_MSG)
         
         while True:
-            print(\
-                'You can select more than one options adding space between them:')
-            raw_awser = input(menu).split()
+            user_responses = self._request_user_multiple_choices(menu)
 
-            for awser in raw_awser:
-                if not self._is_valid_answer_by_indexes(awser, indexes):
+            for response in user_responses:
+                if not self._is_valid_response_by_indexes(response, indexes):
                     break
             else:
-                return raw_awser
+                return user_responses
 
     def _show_message(self, message):
         print(message)
+
+    def _request_user_multiple_choices(self, message):
+        self._show_message(self.CHOICE_REPO_MSG)
+        return input(message).split()
+
+    def _is_valid_response_by_indexes(self, response, indexes):
+        if int(response) not in indexes:
+            logger.warning(f'Invalid choice: Failed - Not a valid index. ' +\
+                                'Please choose a valid option')
+            return False
+        else:
+            return True
+
+    def _extract_valid_repo(self, menu, repos):
+        return set([menu for repo in repos \
+                        for menu in menu.split('\n') if repo in menu])
+
+    def _consolidate_valid_repos(self, list_repo, choices):
+        return [repo for repo in list_repo \
+                        for c in choices \
+                            if c.endswith(repo.repo_initial)]
 
     def ask_is_to_reset(self):
         menu = 'Do you want to reset your repositories branch, '+\
@@ -320,11 +331,11 @@ class CliInterface:
         cmds = list(Const.BUILD_CMDS.values())
         key_indexes = list(Const.BUILD_CMDS.keys())
 
-        menu, indexes = self._build_menu_options_with_indexes(cmds, key_indexes)
+        menu = self._build_menu(key_indexes, cmds)
 
         menu = f"Which Maven command should to use in build process:\n{menu}"
 
-        user_awser = int(self._get_only_one_answer(menu, indexes))
+        user_awser = int(self._get_only_one_answer(menu, key_indexes))
         return Const.BUILD_CMDS.get(user_awser)
 
     def ask_wich_build_branch(self):
@@ -339,19 +350,11 @@ class CliInterface:
         user_awser = None
         while True:
             user_awser = input(menu)
-            if self._is_valid_answer_by_indexes(user_awser, indexes):
+            if self._is_valid_response_by_indexes(user_awser, indexes):
                 break
         return user_awser
     
-    def _is_valid_answer_by_indexes(self, answer, indexes):
-        try:
-            if int(answer) not in indexes:
-                raise ValueError("Failed - Not a valid index.")
-        except ValueError:
-            logger.warning(f'Invalid choice: {answer}. ' +\
-                                    'Please choose a valid option')
-            return False
-        return True
+    
 
 
 class Process:
@@ -373,7 +376,7 @@ class BuildProcessInputs:
 
     def _build_repositories(self, repo_paths):
         self._list_repo = [Repository(r) for r in repo_paths]
-        self._list_repo = self._cli.ask_desired_repos(self._list_repo)
+        self._list_repo = self._cli.request_desired_repos(self._list_repo)
 
     def build_process(self):
         self._initiate_process()
