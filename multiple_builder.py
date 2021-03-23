@@ -211,13 +211,21 @@ class PathHelper:
 
 
 class CliInterface:
-    MENU_OPTIONS_TO_ONE_ANSWER = (1, 2)
-    POSITIVE_OPTION_TO_ONE_ANSWER = 1
-    HEADER_MSG = '#######################################################'\
-                +'\n####### Multiple Builder - Choice Your Options ########'\
-            +'\n#######################################################'
     CHOICE_REPO_MSG = \
             'You can select more than one options adding space between them:'
+    HEADER_MSG = '#######################################################'\
+                +'\n####### Multiple Builder - Choice Your Options ########'\
+                +'\n#######################################################'
+    MENU_OPTIONS_TO_ONE_RESPONSE = (1, 2)
+    POSITIVE_OPTION_TO_ONE_ANSWER = 1
+    REQUEST_IS_TO_RESET_MSG = 'Do you want to reset your repositories branch, '\
+                        +'using "git reset --hard <<branch name >>?":\n1'\
+                        +' - Yes\n2 - No\nR:'
+    REQUEST_IS_TO_UPDATE_MSG = 'Do you want to update all your repositories'\
+                        +' branch, using "git pull":\n1 - Yes\n2 - No\nR: '
+    REQUEST_WAY_BUILD_REPO_MSG = 'Do you want build all your repositories '\
+                                    +'or just that has been updated?'\
+                                    +'n1 - All.\n2 - Just the updated.\nR: '
 
     def __init__(self, cmd_arg_processor):
         self._is_build_full = cmd_arg_processor.is_build_full()
@@ -266,7 +274,7 @@ class CliInterface:
         self._show_message(self.HEADER_MSG)
         
         while True:
-            user_responses = self._request_user_multiple_choices(menu)
+            user_responses = self._request_with_multiple_response(menu)
 
             for response in user_responses:
                 if not self._is_valid_response_by_indexes(response, indexes):
@@ -277,7 +285,7 @@ class CliInterface:
     def _show_message(self, message):
         print(message)
 
-    def _request_user_multiple_choices(self, message):
+    def _request_with_multiple_response(self, message):
         self._show_message(self.CHOICE_REPO_MSG)
         return input(message).split()
 
@@ -298,34 +306,37 @@ class CliInterface:
                         for c in choices \
                             if c.endswith(repo.repo_initial)]
 
-    def ask_is_to_reset(self):
-        menu = 'Do you want to reset your repositories branch, '+\
-                'using "git reset --hard <<branch name >>?":\n'+\
-                    '1 - Yes\n2 - No\nR: '
-        user_awser = self._get_only_one_answer(\
-                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
-        return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
+    def request_is_to_reset(self):
+        return self._perform_to_get_one_response(self.REQUEST_IS_TO_RESET_MSG)
+
+    def _perform_to_get_one_response(self, request_message):
+        response = self._request_only_one_response(\
+                                            request_message,\
+                                            self.MENU_OPTIONS_TO_ONE_RESPONSE)
+        return self._is_positive_response(response)
+
+    def _request_only_one_response(self, menu, indexes):
+        user_awser = None
+
+        while True:
+            user_awser = input(menu)
+            if self._is_valid_response_by_indexes(user_awser, indexes):
+                break
+
+        return user_awser
+
+    def _is_positive_response(self, response_value):
+            return True \
+                if int(response_value) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
                     else False
 
-    def ask_is_to_update(self):
-        menu = 'Do you want to update all your repositories branch, '+\
-                'using "git pull":\n'+\
-                    '1 - Yes\n2 - No\nR: '
-        user_awser = self._get_only_one_answer(\
-                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
-        return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
-                    else False
+    def request_is_to_update(self):
+        return self._perform_to_get_one_response(\
+                                            self.REQUEST_IS_TO_UPDATE_MSG)
 
-    def ask_is_to_build_all(self):
-        menu = 'Do you want build all your repositories or just that'+\
-            ' has been updated?\n1 - All.\n2 - Just the updated.\nR: '
-        user_awser = self._get_only_one_answer(\
-                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
-        return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
-                    else False
+    def request_is_to_build_all(self):
+        return self._perform_to_get_one_response(\
+                                            self.REQUEST_WAY_BUILD_REPO_MSG)
 
     def ask_type_command_build(self):
         cmds = list(Const.BUILD_CMDS.values())
@@ -335,7 +346,7 @@ class CliInterface:
 
         menu = f"Which Maven command should to use in build process:\n{menu}"
 
-        user_awser = int(self._get_only_one_answer(menu, key_indexes))
+        user_awser = int(self._request_only_one_response(menu, key_indexes))
         return Const.BUILD_CMDS.get(user_awser)
 
     def ask_wich_build_branch(self):
@@ -346,13 +357,7 @@ class CliInterface:
                     if user_awser.upper() == Const.BUILD_BRANCH_OPT \
                         else user_awser   
            
-    def _get_only_one_answer(self, menu, indexes):
-        user_awser = None
-        while True:
-            user_awser = input(menu)
-            if self._is_valid_response_by_indexes(user_awser, indexes):
-                break
-        return user_awser
+    
     
     
 
