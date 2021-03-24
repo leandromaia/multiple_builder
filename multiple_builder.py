@@ -217,15 +217,21 @@ class CliInterface:
                 +'\n####### Multiple Builder - Choice Your Options ########'\
                 +'\n#######################################################'
     MENU_OPTIONS_TO_ONE_RESPONSE = (1, 2)
-    POSITIVE_OPTION_TO_ONE_ANSWER = 1
+    CORRECT_OPTION_TO_ONE_ANSWER = 1
     REQUEST_IS_TO_RESET_MSG = 'Do you want to reset your repositories branch, '\
                         +'using "git reset --hard <<branch name >>?":\n1'\
-                        +' - Yes\n2 - No\nR:'
+                        +' - Yes\n2 - No\nR: '
     REQUEST_IS_TO_UPDATE_MSG = 'Do you want to update all your repositories'\
                         +' branch, using "git pull":\n1 - Yes\n2 - No\nR: '
     REQUEST_WAY_BUILD_REPO_MSG = 'Do you want build all your repositories '\
                                     +'or just that has been updated?'\
                                     +'n1 - All.\n2 - Just the updated.\nR: '
+    REQUEST_BUILD_CMD_MSG = 'Which Maven command should to use '\
+                                    +'in build process:'
+
+    REQUEST_BRANCH_TO_BUILD_MSG = 'Which branch all the repositories should '\
+                            +'to build?\nType only M to default branch master'\
+                            +' ou type the desired branch name:\nR: '
 
     def __init__(self, cmd_arg_processor):
         self._is_build_full = cmd_arg_processor.is_build_full()
@@ -271,7 +277,7 @@ class CliInterface:
         return menu
 
     def _request_repo_to_build(self, menu, indexes):      
-        self._show_message(self.HEADER_MSG)
+        self._show_message_to_user(self.HEADER_MSG)
         
         while True:
             user_responses = self._request_with_multiple_response(menu)
@@ -282,12 +288,16 @@ class CliInterface:
             else:
                 return user_responses
 
-    def _show_message(self, message):
+    def _show_message_to_user(self, message):
         print(message)
 
+    def _request_user_response(self, message):
+        return input(message)
+
     def _request_with_multiple_response(self, message):
-        self._show_message(self.CHOICE_REPO_MSG)
-        return input(message).split()
+        self._show_message_to_user(self.CHOICE_REPO_MSG)
+
+        return self._request_user_response(message).split()
 
     def _is_valid_response_by_indexes(self, response, indexes):
         if int(response) not in indexes:
@@ -298,68 +308,67 @@ class CliInterface:
             return True
 
     def _extract_valid_repo(self, menu, repos):
-        return set([menu for repo in repos \
-                        for menu in menu.split('\n') if repo in menu])
+        return set([m for repo in repos \
+                        for m in menu.split('\n') if repo in m])
 
     def _consolidate_valid_repos(self, list_repo, choices):
         return [repo for repo in list_repo \
                         for c in choices \
                             if c.endswith(repo.repo_initial)]
 
-    def request_is_to_reset(self):
-        return self._perform_to_get_one_response(self.REQUEST_IS_TO_RESET_MSG)
+    def request_type_build_comands(self):
+        commands = list(Const.BUILD_CMDS.values())
+        commands_indexes = list(Const.BUILD_CMDS.keys())
 
-    def _perform_to_get_one_response(self, request_message):
+        menu = self._build_menu(commands_indexes, commands)
+        menu = self.REQUEST_BUILD_CMD_MSG + menu
+
+        return self._handle_build_command_response(menu, commands_indexes)
+
+    def _handle_build_command_response(self, menu, commands_indexes):
+        response_index = self._request_only_one_response(\
+                                                    menu, commands_indexes)
+        
+        return Const.BUILD_CMDS.get(int(response_index))
+
+    def request_branch_to_build(self):
+        user_response = self._request_user_response(\
+                                            self.REQUEST_BRANCH_TO_BUILD_MSG)
+
+        return Const.BUILD_BRANCH \
+                    if user_response.upper() == Const.BUILD_BRANCH_OPT \
+                        else user_response
+    
+    def request_is_to_reset(self):
+        return self._handle_one_response(self.REQUEST_IS_TO_RESET_MSG)
+
+    def request_is_to_update(self):
+        return self._handle_one_response(self.REQUEST_IS_TO_UPDATE_MSG)
+
+    def request_is_to_build_all(self):
+        return self._handle_one_response(self.REQUEST_WAY_BUILD_REPO_MSG)
+
+    def _handle_one_response(self, request_message):
         response = self._request_only_one_response(\
                                             request_message,\
                                             self.MENU_OPTIONS_TO_ONE_RESPONSE)
-        return self._is_positive_response(response)
+        return self._is_correct_response(response)
 
     def _request_only_one_response(self, menu, indexes):
         user_awser = None
 
         while True:
-            user_awser = input(menu)
+            user_awser = self._request_user_response(menu)
             if self._is_valid_response_by_indexes(user_awser, indexes):
                 break
 
         return user_awser
 
-    def _is_positive_response(self, response_value):
-            return True \
-                if int(response_value) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
-                    else False
-
-    def request_is_to_update(self):
-        return self._perform_to_get_one_response(\
-                                            self.REQUEST_IS_TO_UPDATE_MSG)
-
-    def request_is_to_build_all(self):
-        return self._perform_to_get_one_response(\
-                                            self.REQUEST_WAY_BUILD_REPO_MSG)
-
-    def ask_type_command_build(self):
-        cmds = list(Const.BUILD_CMDS.values())
-        key_indexes = list(Const.BUILD_CMDS.keys())
-
-        menu = self._build_menu(key_indexes, cmds)
-
-        menu = f"Which Maven command should to use in build process:\n{menu}"
-
-        user_awser = int(self._request_only_one_response(menu, key_indexes))
-        return Const.BUILD_CMDS.get(user_awser)
-
-    def ask_wich_build_branch(self):
-        user_awser = input("Which branch all the repositories should to "+ \
-                    "build?\nType only M to default branch master ou type"+ \
-                    " the desired branch name:\nR: ")
-        return Const.BUILD_BRANCH \
-                    if user_awser.upper() == Const.BUILD_BRANCH_OPT \
-                        else user_awser   
-           
-    
-    
-    
+    def _is_correct_response(self, response_value):
+        return True if int(response_value) == \
+                            self.CORRECT_OPTION_TO_ONE_ANSWER \
+                                else False
+ 
 
 
 class Process:
@@ -375,8 +384,9 @@ class Process:
 
 class BuildProcessInputs:
 
-    def __init__(self, cli, repo_paths):
+    def __init__(self, cli, command_processor, repo_paths):
         self._cli = cli
+        self._command_processor = command_processor
         self._build_repositories(repo_paths)
 
     def _build_repositories(self, repo_paths):
@@ -387,25 +397,25 @@ class BuildProcessInputs:
         self._initiate_process()
 
         if not self._process.is_skip_menu:
-            self._process.is_to_reset = self._cli.ask_is_to_reset()
-            self._process.is_to_update = self._cli.ask_is_to_update()
+            self._process.is_to_reset = self._cli.request_is_to_reset()
+            self._process.is_to_update = self._cli.request_is_to_update()
 
             if self._process.is_to_update:
-                self._process.is_build_all = self._cli.ask_is_to_build_all()
+                self._process.is_build_all = self._cli.is_build_full
 
-            self._process.build_branch = self._cli.ask_wich_build_branch()
+            self._process.build_branch = self._cli.request_branch_to_build()
 
             self._format_repositories()
 
     def _initiate_process(self):
         self._process = Process()
-        self._process.is_build_full = self._cli.is_build_full
-        self._process.is_clean_m2 = self._cli.is_to_clean_m2
-        self._process.is_skip_menu = self._cli.is_to_skip_menu
+        self._process.is_build_full = self._command_processor.is_build_full()
+        self._process.is_clean_m2 = self._command_processor.is_to_clean_m2()
+        self._process.is_skip_menu = self._command_processor.is_to_skip_menu()
 
     def _format_repositories(self):
         if not self._process.is_build_full and not self._process.is_skip_menu:
-            build_cmd = self._cli.ask_type_command_build()
+            build_cmd = self._cli.request_type_build_comands()
         else:
             build_cmd = Const.BUILD_CMDS.get(1)
 
@@ -553,7 +563,7 @@ def start_build():
         
         cli = CliInterface(cmd_args_proc)
         #TODO fix the BuildProcessInput returns in build_process method
-        build_inputs = BuildProcessInputs(cli, repo_paths)
+        build_inputs = BuildProcessInputs(cli, cmd_args_proc, repo_paths)
               
         handler = ProcessHandler(build_inputs.build_process())
         # handler.start_process(build_inputs.repositories)
