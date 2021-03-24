@@ -377,7 +377,7 @@ class Process:
         self.build_branch = Const.BUILD_BRANCH
 
 
-class BuildProcessInputs:
+class ControllerCLI:
 
     def __init__(self):
         self._cli = CliInterface()
@@ -561,11 +561,11 @@ def start_build():
     try:
         setup_logger()
 
-        build_inputs = BuildProcessInputs()
+        controller_cli = ControllerCLI()
 
-        process = build_inputs.build_process()
+        process = controller_cli.build_process()
 
-        repositories = build_inputs.build_repositories(process)
+        repositories = controller_cli.build_repositories(process)
               
         handler = ProcessHandler(process)
         handler.start_process(repositories)
