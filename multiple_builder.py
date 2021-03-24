@@ -233,11 +233,6 @@ class CliInterface:
                             +'to build?\nType only M to default branch master'\
                             +' ou type the desired branch name:\nR: '
 
-    def __init__(self, cmd_arg_processor):
-        self._is_build_full = cmd_arg_processor.is_build_full()
-        self._is_clean_m2 = cmd_arg_processor.is_to_clean_m2()
-        self._is_skip_menu = cmd_arg_processor.is_to_skip_menu()
-
     @property
     def is_build_full(self):
         return self._is_build_full
@@ -384,48 +379,49 @@ class Process:
 
 class BuildProcessInputs:
 
-    def __init__(self, cli, command_processor, repo_paths):
-        self._cli = cli
-        self._command_processor = command_processor
-        self._build_repositories(repo_paths)
+    def __init__(self):
+        self._cli = CliInterface()
+        self._cmd_args_proc  = CommandArgsProcessor()      
 
-    def _build_repositories(self, repo_paths):
+    def build_repositories(self, process):
+        repo_paths = PathHelper.fetch_repo_paths(\
+                                        self._cmd_args_proc.repos_directory)
+
         self._list_repo = [Repository(r) for r in repo_paths]
         self._list_repo = self._cli.request_desired_repos(self._list_repo)
+        return self._format_repositories(process)
 
-    def build_process(self):
-        self._initiate_process()
-
-        if not self._process.is_skip_menu:
-            self._process.is_to_reset = self._cli.request_is_to_reset()
-            self._process.is_to_update = self._cli.request_is_to_update()
-
-            if self._process.is_to_update:
-                self._process.is_build_all = self._cli.is_build_full
-
-            self._process.build_branch = self._cli.request_branch_to_build()
-
-            self._format_repositories()
-
-    def _initiate_process(self):
-        self._process = Process()
-        self._process.is_build_full = self._command_processor.is_build_full()
-        self._process.is_clean_m2 = self._command_processor.is_to_clean_m2()
-        self._process.is_skip_menu = self._command_processor.is_to_skip_menu()
-
-    def _format_repositories(self):
-        if not self._process.is_build_full and not self._process.is_skip_menu:
+    def _format_repositories(self, process):
+        if not process.is_build_full and not process.is_skip_menu:
             build_cmd = self._cli.request_type_build_comands()
         else:
             build_cmd = Const.BUILD_CMDS.get(1)
 
         for r in self._list_repo:
-            r.build_command = build_cmd        
+            r.build_command = build_cmd
+        
+        return self._list_repo
 
-    @property
-    def repositories(self):
-        if self._list_repo:
-            return self._list_repo
+    def build_process(self):
+        process = self._initiate_process()
+
+        if not process.is_skip_menu:
+            process.is_to_reset = self._cli.request_is_to_reset()
+            process.is_to_update = self._cli.request_is_to_update()
+
+            if process.is_to_update:
+                process.is_build_all = self._cli.is_build_full
+
+            process.build_branch = self._cli.request_branch_to_build()
+
+        return process
+
+    def _initiate_process(self):
+        process = Process()
+        process.is_build_full = self._cmd_args_proc.is_build_full()
+        process.is_clean_m2 = self._cmd_args_proc.is_to_clean_m2()
+        process.is_skip_menu = self._cmd_args_proc.is_to_skip_menu()
+        return process
 
 
 class CommandArgument(TypedDict, total=False):
@@ -553,20 +549,26 @@ def setup_logger():
     logger = logging.getLogger(__name__)
 
 
+def initiate_process(command_processor):
+        process = Process()
+        process.is_build_full = command_processor.is_build_full()
+        process.is_clean_m2 = command_processor.is_to_clean_m2()
+        process.is_skip_menu = command_processor.is_to_skip_menu()
+        return process
+
+
 def start_build():
     try:
         setup_logger()
 
-        cmd_args_proc = CommandArgsProcessor()
+        build_inputs = BuildProcessInputs()
 
-        repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
-        
-        cli = CliInterface(cmd_args_proc)
-        #TODO fix the BuildProcessInput returns in build_process method
-        build_inputs = BuildProcessInputs(cli, cmd_args_proc, repo_paths)
+        process = build_inputs.build_process()
+
+        repositories = build_inputs.build_repositories(process)
               
-        handler = ProcessHandler(build_inputs.build_process())
-        # handler.start_process(build_inputs.repositories)
+        handler = ProcessHandler(process)
+        handler.start_process(repositories)
 
     except KeyboardInterrupt:
         logger.info(f'The process has finished by CTRL+C.')
