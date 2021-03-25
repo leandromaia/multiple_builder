@@ -210,7 +210,7 @@ class PathHelper:
                     'Please make sure you had cloned the GIT repositories.')
 
 
-class CliInterface:
+class MultipleBuilderCLI:
     CHOICE_REPO_MSG = \
             'You can select more than one options adding space between them:'
     HEADER_MSG = '#######################################################'\
@@ -377,19 +377,67 @@ class Process:
         self.build_branch = Const.BUILD_BRANCH
 
 
-class ControllerCLI:
+class MultipleBuilderCLIController:
 
     def __init__(self):
-        self._cli = CliInterface()
-        self._cmd_args_proc  = CommandArgsProcessor()      
+        self._cli = MultipleBuilderCLI()
+        self._cmd_args_proc  = CommandArgsProcessor()
+        self._process = None
+
+    def build_process(self):
+        process = self._initiate_essential_process()
+
+        self._set_detailed_process_value(process)
+
+        return process
+
+    def _initiate_essential_process(self):
+        process = Process()
+
+        process.is_build_full = self._cmd_args_proc.is_build_full()
+        process.is_clean_m2 = self._cmd_args_proc.is_to_clean_m2()
+        process.is_skip_menu = self._cmd_args_proc.is_to_skip_menu()
+
+        return process
+
+    def _set_detailed_process_value(self, process):
+        if not process.is_skip_menu:
+            process.is_to_reset = self._cli.request_is_to_reset()
+
+            self._set_update_process_value(process)
+
+            process.build_branch = self._cli.request_branch_to_build()
+
+    def _set_update_process_value(self, process):
+        process.is_to_update = self._cli.request_is_to_update()
+
+        if process.is_to_update:
+            process.is_build_all = self._cli.is_build_full
 
     def build_repositories(self, process):
-        repo_paths = PathHelper.fetch_repo_paths(\
-                                        self._cmd_args_proc.repos_directory)
+        repositories_paths = self._get_repositories_paths()
 
-        self._list_repo = [Repository(r) for r in repo_paths]
+        self._list_repo = self._initiate_repositories(repositories_paths)
         self._list_repo = self._cli.request_desired_repos(self._list_repo)
         return self._format_repositories(process)
+        
+    def _get_repositories_paths(self):
+        paths_from_command_args = self._cmd_args_proc.repos_directory
+
+        repos_paths = PathHelper.fetch_repo_paths(paths_from_command_args)
+
+        self._validate_repositories_paths(repos_paths)
+
+        return repos_paths
+
+    def _validate_repositories_paths(self, repositories_paths):
+        if len(repositories_paths) == 0:
+            raise BuilderProcessException(\
+                'Failed to read the repositories directories. '+\
+                'Please make sure you had cloned the GIT repositories.')
+
+    def _initiate_repositories(self, repos_paths):
+        return [Repository(path) for path in repos_paths]
 
     def _format_repositories(self, process):
         if not process.is_build_full and not process.is_skip_menu:
@@ -402,26 +450,7 @@ class ControllerCLI:
         
         return self._list_repo
 
-    def build_process(self):
-        process = self._initiate_process()
-
-        if not process.is_skip_menu:
-            process.is_to_reset = self._cli.request_is_to_reset()
-            process.is_to_update = self._cli.request_is_to_update()
-
-            if process.is_to_update:
-                process.is_build_all = self._cli.is_build_full
-
-            process.build_branch = self._cli.request_branch_to_build()
-
-        return process
-
-    def _initiate_process(self):
-        process = Process()
-        process.is_build_full = self._cmd_args_proc.is_build_full()
-        process.is_clean_m2 = self._cmd_args_proc.is_to_clean_m2()
-        process.is_skip_menu = self._cmd_args_proc.is_to_skip_menu()
-        return process
+    
 
 
 class CommandArgument(TypedDict, total=False):
@@ -561,11 +590,11 @@ def start_build():
     try:
         setup_logger()
 
-        controller_cli = ControllerCLI()
+        cli_controller = MultipleBuilderCLIController()
 
-        process = controller_cli.build_process()
+        process = cli_controller.build_process()
 
-        repositories = controller_cli.build_repositories(process)
+        repositories = cli_controller.build_repositories(process)
               
         handler = ProcessHandler(process)
         handler.start_process(repositories)
