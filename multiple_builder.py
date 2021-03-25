@@ -185,7 +185,7 @@ class PathHelper:
 
         valid_repo_paths = PathHelper._extract_valid_repo_paths(raw_paths)
 
-        PathHelper._check_has_valid_repo_paths(valid_repo_paths)
+        PathHelper._has_valid_repo_paths(valid_repo_paths)
 
         return valid_repo_paths
 
@@ -203,7 +203,7 @@ class PathHelper:
                     for r in Const.REPO_PATHS if a.endswith(r)]
 
     @staticmethod
-    def _check_has_valid_repo_paths(repo_paths):
+    def _has_valid_repo_paths(repo_paths):
         if len(repo_paths) == 0:
             raise BuilderProcessException(\
                 f'Failed to read the repositories directories.'+\
@@ -245,19 +245,13 @@ class MultipleBuilderCLI:
     def is_skip_menu(self):
         return self._is_skip_menu
 
-    def request_desired_repos(self, list_repo):
-        repo_names = self._extract_repo_names(list_repo)
-        
-        indexes = self._build_indexes(repo_names)
-        menu = self._build_menu(indexes, repo_names)
+    def request_desired_repos(self, repos_initial):        
+        indexes = self._build_indexes(repos_initial)
+        menu = self._build_menu(indexes, repos_initial)
 
         repos = self._request_repo_to_build(menu, indexes)
-        repos = self._extract_valid_repo(menu, repos)
 
-        return self._consolidate_valid_repos(list_repo, repos)
-
-    def _extract_repo_names(self, list_repo):
-        return [r.repo_initial for r in list_repo]
+        return self._extract_valid_repo(menu, repos)
 
     def _build_indexes(self, options):
         return [* range(1, len(options) + 1)]
@@ -305,11 +299,6 @@ class MultipleBuilderCLI:
     def _extract_valid_repo(self, menu, repos):
         return set([m for repo in repos \
                         for m in menu.split('\n') if repo in m])
-
-    def _consolidate_valid_repos(self, list_repo, choices):
-        return [repo for repo in list_repo \
-                        for c in choices \
-                            if c.endswith(repo.repo_initial)]
 
     def request_type_build_comands(self):
         commands = list(Const.BUILD_CMDS.values())
@@ -381,26 +370,26 @@ class MultipleBuilderCLIController:
 
     def __init__(self):
         self._cli = MultipleBuilderCLI()
-        self._cmd_args_proc  = CommandArgsProcessor()
+        self._command_args  = CommandArgsProcessor()
         self._process = None
 
     def build_process(self):
         process = self._initiate_essential_process()
 
-        self._set_detailed_process_value(process)
+        self._set_detailed_process_values(process)
 
         return process
 
     def _initiate_essential_process(self):
         process = Process()
 
-        process.is_build_full = self._cmd_args_proc.is_build_full()
-        process.is_clean_m2 = self._cmd_args_proc.is_to_clean_m2()
-        process.is_skip_menu = self._cmd_args_proc.is_to_skip_menu()
+        process.is_build_full = self._command_args.is_build_full()
+        process.is_clean_m2 = self._command_args.is_to_clean_m2()
+        process.is_skip_menu = self._command_args.is_to_skip_menu()
 
         return process
 
-    def _set_detailed_process_value(self, process):
+    def _set_detailed_process_values(self, process):
         if not process.is_skip_menu:
             process.is_to_reset = self._cli.request_is_to_reset()
 
@@ -418,23 +407,27 @@ class MultipleBuilderCLIController:
         repositories_paths = self._get_repositories_paths()
 
         self._list_repo = self._initiate_repositories(repositories_paths)
-        self._list_repo = self._cli.request_desired_repos(self._list_repo)
+
+        repos_initial = self._extract_repos_initial(self._list_repo)
+
+        user_reponse = self._cli.request_desired_repos(repos_initial)
+
+        self._list_repo = self._consolidate_valid_repos(user_reponse)
+
         return self._format_repositories(process)
+
+    def _extract_repos_initial(self, list_repo):
+        return [r.repo_initial for r in list_repo]
+
+    def _consolidate_valid_repos(self, choices):
+        return [repo for repo in self._list_repo \
+                        for c in choices \
+                            if c.endswith(repo.repo_initial)]
         
     def _get_repositories_paths(self):
-        paths_from_command_args = self._cmd_args_proc.repos_directory
+        paths_from_command_args = self._command_args.repos_directory
 
-        repos_paths = PathHelper.fetch_repo_paths(paths_from_command_args)
-
-        self._validate_repositories_paths(repos_paths)
-
-        return repos_paths
-
-    def _validate_repositories_paths(self, repositories_paths):
-        if len(repositories_paths) == 0:
-            raise BuilderProcessException(\
-                'Failed to read the repositories directories. '+\
-                'Please make sure you had cloned the GIT repositories.')
+        return PathHelper.fetch_repo_paths(paths_from_command_args)
 
     def _initiate_repositories(self, repos_paths):
         return [Repository(path) for path in repos_paths]
