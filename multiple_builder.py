@@ -47,13 +47,14 @@ class ProcessHandler:
 
     def start_process(self, repositories):
         self._clean_m2_project_folder()
-        is_to_build = self._check_is_process_to_build()
 
         for repo in repositories:
             pull_result = str()
 
             if self._process.is_to_update:
                 pull_result = self._update_repository(repo._absolute_path)
+
+            is_to_build = self._check_is_process_to_build()
 
             if is_to_build or Const.PULL_UPDATED not in pull_result:
                 self._wrapper_run_process(repo.build_command, \
@@ -179,27 +180,28 @@ class PathHelper:
     def fetch_repo_paths(root_path):
         """Process the root path and extract all valid repository paths
         from the root path."""
-        root_path = PathHelper._get_root_path(root_path)
+        root_path = PathHelper._get_valid_root_path(root_path)
 
-        raw_paths = PathHelper._extract_directories_from_path(root_path)
+        absolute_paths = PathHelper.\
+                        _extract_all_absolute_paths_from_root_path(root_path)
 
-        valid_repo_paths = PathHelper._extract_valid_repo_paths(raw_paths)
+        repo_paths = PathHelper._extract_repo_paths(absolute_paths)
 
-        PathHelper._has_valid_repo_paths(valid_repo_paths)
+        PathHelper._has_valid_repo_paths(repo_paths)
 
-        return valid_repo_paths
-
-    @staticmethod
-    def _get_root_path(root_path):
-        return os.getcwd() if not root_path else root_path
+        return repo_paths
 
     @staticmethod
-    def _extract_directories_from_path(root_path):
+    def _get_valid_root_path(root_path):
+        return root_path if root_path else os.getcwd()
+
+    @staticmethod
+    def _extract_all_absolute_paths_from_root_path(root_path):
         return [f.path for f in os.scandir(root_path) if f.is_dir()]
 
     @staticmethod
-    def _extract_valid_repo_paths(all_paths):
-        return [a for a in all_paths \
+    def _extract_repo_paths(absolute_paths):
+        return [a for a in absolute_paths \
                     for r in Const.REPO_PATHS if a.endswith(r)]
 
     @staticmethod
@@ -352,7 +354,6 @@ class MultipleBuilderCLI:
         return True if int(response_value) == \
                             self.CORRECT_OPTION_TO_ONE_ANSWER \
                                 else False
- 
 
 
 class Process:
@@ -406,24 +407,19 @@ class MultipleBuilderCLIController:
     def build_repositories(self, process):
         repositories_paths = self._get_repositories_paths()
 
-        self._list_repo = self._initiate_repositories(repositories_paths)
+        repositories = self._initiate_repositories(repositories_paths)
 
-        repos_initial = self._extract_repos_initial(self._list_repo)
+        repositories_initial = self._extract_repos_initial(repositories)
 
-        user_reponse = self._cli.request_desired_repos(repos_initial)
+        user_reponse = self._cli.request_desired_repos(repositories_initial)
 
-        self._list_repo = self._consolidate_valid_repos(user_reponse)
+        repositories = self._consolidate_valid_repos(\
+                                                    user_reponse, repositories)
 
-        return self._format_repositories(process)
+        self._set_build_command_for_each_repository(process, repositories)
 
-    def _extract_repos_initial(self, list_repo):
-        return [r.repo_initial for r in list_repo]
+        return repositories
 
-    def _consolidate_valid_repos(self, choices):
-        return [repo for repo in self._list_repo \
-                        for c in choices \
-                            if c.endswith(repo.repo_initial)]
-        
     def _get_repositories_paths(self):
         paths_from_command_args = self._command_args.repos_directory
 
@@ -432,18 +428,25 @@ class MultipleBuilderCLIController:
     def _initiate_repositories(self, repos_paths):
         return [Repository(path) for path in repos_paths]
 
-    def _format_repositories(self, process):
-        if not process.is_build_full and not process.is_skip_menu:
-            build_cmd = self._cli.request_type_build_comands()
+    def _extract_repos_initial(self, repositories):
+        return [r.repo_initial for r in repositories]
+
+    def _consolidate_valid_repos(self, choices, repositories):
+        return [repository for repository in repositories \
+                        for choice in choices \
+                            if choice.endswith(repository.repo_initial)]
+
+    def _set_build_command_for_each_repository(self, process, repositories):
+        build_cmd = self._get_build_command(process)
+
+        for repository in repositories:
+            repository.build_command = build_cmd
+
+    def _get_build_command(self, process):
+        if process.is_build_full and process.is_skip_menu:
+            return Const.BUILD_CMDS.get(1)
         else:
-            build_cmd = Const.BUILD_CMDS.get(1)
-
-        for r in self._list_repo:
-            r.build_command = build_cmd
-        
-        return self._list_repo
-
-    
+            return self._cli.request_type_build_comands()
 
 
 class CommandArgument(TypedDict, total=False):
