@@ -41,6 +41,12 @@ class Const:
 
 
 class ProcessHandler:
+    GIT_CHECKOUT_CMD = 'git checkout'
+    GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
+    GIT_CLEAN_CMD = 'yes y | git clean -fxd'
+    GIT_REST_HARD_MASTER_CMD = 'git reset --hard origin/master'
+
+
 
     def __init__(self, process):
         self._process = process
@@ -68,13 +74,22 @@ class ProcessHandler:
 
     def _update_repository(self, repo_path):
         if self._process.is_to_reset:
-            self._update_with_reset(repo_path)
+            self._reset_repository(repo_path)
         else:
-            args_checkout = ['git', 'checkout', self._process.build_branch]
-            self._wrapper_run_process(args_checkout, repo_path)
+            self._checkout_build_branch(repo_path)
         
         args_pull = ['git', 'pull']
         return self._wrapper_run_process(args_pull, repo_path)
+
+    def _reset_repository(self, repoitories_path):
+        self._wrapper_run_process(self.GIT_CLEAN_CMD, repoitories_path)
+        self._wrapper_run_process(self.GIT_CLEAN_CMD, repoitories_path)
+        self._wrapper_run_process(self.GIT_REST_HARD_MASTER_CMD, \
+                                                            repoitories_path)
+
+    def _checkout_build_branch(self, repository_path):
+        command = self.GIT_CHECKOUT_CMD + self._process.build_branch
+        self._wrapper_run_process(command, repository_path)
 
     def _check_is_process_to_build(self):
         return True \
@@ -82,14 +97,6 @@ class ProcessHandler:
                                                 self._process.is_skip_menu\
             else False
 
-    def _update_with_reset(self, repo_path):
-        args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
-        args_checkout = ['git', 'checkout', 'master']
-        args_reset = ['git', 'reset', '--hard', 'origin/master']
-
-        self._wrapper_run_process(args_reset, repo_path)
-        self._wrapper_run_process(args_checkout, repo_path)
-        self._wrapper_run_process(args_reset, repo_path)
 
     def _wrapper_run_process(self, command, path):
         try:
@@ -115,32 +122,29 @@ class Repository:
             self._absolute_path = absolute_path
             self._build_initial_value()
         else:
-            # FIXME the log below is ambiguous
-            logger.error(f"The directory {absolute_path} doesn't exist!!!")
-            raise OSError(f"The directory {absolute_path} doesn't exist!!!")
+            logger.warning(f"The directory {absolute_path} doesn't exist!!!")
 
     def _build_initial_value(self):
         self._initial = self._absolute_path.split('.')[-1].upper()
 
     @property
     def repo_initial(self):
-        if not self._initial:
-            self._build_initial_value()
-        return self._initial
+        return self._initial \
+            if self._initial \
+                else self._build_initial_value()       
 
     @property
     def build_command(self):
-        if self._build_command:
-            return self._build_command
-        else:
-            return Const.BUILD_CMDS.get(1)
+        return self._build_command \
+            if self._build_command \
+                else Const.BUILD_CMDS.get(1)
 
     @build_command.setter
-    def build_command(self, cmd):
-        if cmd in Const.BUILD_CMDS.values():
-            self._build_command = cmd
+    def build_command(self, command):
+        if command in Const.BUILD_CMDS.values():
+            self._build_command = command
         else:
-            raise ValueError(f"The '{cmd}' is not a valid Maven command.")
+            raise ValueError(f"The '{command}' is not a valid Maven command.")
 
     def __str__(self):
         return self._initial
@@ -166,15 +170,15 @@ class PathHelper:
                                 f'{m2_path} has failed.')
 
     @staticmethod
+    def _get_m2_path():
+        return Path.joinpath(Path.home(), Const.M2_PATH)
+
+    @staticmethod
     def _validate_m2_path(m2_path):
         if not m2_path.is_dir():
             raise BuilderProcessException(\
                 f'Is not possible to clean the M2 project. The path '+\
                             f'{m2_path} is not a valid directory')
-
-    @staticmethod
-    def _get_m2_path():
-        return Path.joinpath(Path.home(), Const.M2_PATH)
 
     @staticmethod
     def fetch_repo_paths(root_path):
@@ -235,21 +239,9 @@ class MultipleBuilderCLI:
                             +'to build?\nType only M to default branch master'\
                             +' ou type the desired branch name:\nR: '
 
-    @property
-    def is_build_full(self):
-        return self._is_build_full
-
-    @property
-    def is_clean_m2(self):
-        return self._is_clean_m2
-
-    @property
-    def is_skip_menu(self):
-        return self._is_skip_menu
-
-    def request_desired_repos(self, repos_initial):        
-        indexes = self._build_indexes(repos_initial)
-        menu = self._build_menu(indexes, repos_initial)
+    def request_user_repositories(self, initials):        
+        indexes = self._build_indexes(initials)
+        menu = self._build_menu(indexes, initials)
 
         repos = self._request_repo_to_build(menu, indexes)
 
@@ -282,13 +274,13 @@ class MultipleBuilderCLI:
     def _show_message_to_user(self, message):
         print(message)
 
-    def _request_user_response(self, message):
-        return input(message)
-
     def _request_with_multiple_response(self, message):
         self._show_message_to_user(self.CHOICE_REPO_MSG)
 
         return self._request_user_response(message).split()
+
+    def _request_user_response(self, message):
+        return input(message)
 
     def _is_valid_response_by_indexes(self, response, indexes):
         if int(response) not in indexes:
@@ -402,23 +394,24 @@ class MultipleBuilderCLIController:
         process.is_to_update = self._cli.request_is_to_update()
 
         if process.is_to_update:
-            process.is_build_all = self._cli.is_build_full
+            process.is_build_all = self._cli.request_is_to_build_all()
 
     def build_repositories(self, process):
         repositories_paths = self._get_repositories_paths()
 
         repositories = self._initiate_repositories(repositories_paths)
 
-        repositories_initial = self._extract_repos_initial(repositories)
+        repositories_initial = self._get_repositories_initial(repositories)
 
-        user_reponse = self._cli.request_desired_repos(repositories_initial)
+        user_response = self._cli.request_user_repositories(\
+                                                        repositories_initial)
 
-        repositories = self._consolidate_valid_repos(\
-                                                    user_reponse, repositories)
+        user_repositories = self._find_out_user_repositories(\
+                                                user_response, repositories)
 
-        self._set_build_command_for_each_repository(process, repositories)
+        self._set_build_command_for_each_repository(process, user_repositories)
 
-        return repositories
+        return user_repositories
 
     def _get_repositories_paths(self):
         paths_from_command_args = self._command_args.repos_directory
@@ -428,10 +421,10 @@ class MultipleBuilderCLIController:
     def _initiate_repositories(self, repos_paths):
         return [Repository(path) for path in repos_paths]
 
-    def _extract_repos_initial(self, repositories):
+    def _get_repositories_initial(self, repositories):
         return [r.repo_initial for r in repositories]
 
-    def _consolidate_valid_repos(self, choices, repositories):
+    def _find_out_user_repositories(self, choices, repositories):
         return [repository for repository in repositories \
                         for choice in choices \
                             if choice.endswith(repository.repo_initial)]
