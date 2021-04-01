@@ -17,6 +17,11 @@ class BuilderProcessException(Exception):
     pass
 
 
+class ProcessNotValid(Exception):
+    "Raise a warning indicating an invalid rule for execute a process"
+    pass
+
+
 class Const:
     PULL_UPDATED = "Already up to date"
     
@@ -45,8 +50,7 @@ class ProcessHandler:
     GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
     GIT_CLEAN_CMD = 'yes y | git clean -fxd'
     GIT_REST_HARD_MASTER_CMD = 'git reset --hard origin/master'
-
-
+    GIT_PULL_CMD = 'git pull'
 
     def __init__(self, process):
         self._process = process
@@ -54,57 +58,56 @@ class ProcessHandler:
     def start_process(self, repositories):
         self._clean_m2_project_folder()
 
-        for repo in repositories:
-            pull_result = str()
+        for repository in repositories:
+            self._prepare_repository(repository._absolute_path)
 
-            if self._process.is_to_update:
-                pull_result = self._update_repository(repo._absolute_path)
+            pull_result = self._update_repository(repository._absolute_path)
 
-            is_to_build = self._check_is_process_to_build()
-
-            if is_to_build or Const.PULL_UPDATED not in pull_result:
-                self._wrapper_run_process(repo.build_command, \
-                                                    repo._absolute_path)
-            else:
-                logger.info(f'The {repo.repo_initial} has not been built!')
+            self._execute_build_process(repository, pull_result)
 
     def _clean_m2_project_folder(self):
         if self._process.is_clean_m2:
             PathHelper.delete_m2()
 
-    def _update_repository(self, repo_path):
-        if self._process.is_to_reset:
-            self._reset_repository(repo_path)
+    def _prepare_repository(self, repository_path):
+        if self._process.is_to_update and self._process.is_to_reset:
+            self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+            self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+            self._run_process_command(self.GIT_REST_HARD_MASTER_CMD, \
+                                                            repository_path)
         else:
-            self._checkout_build_branch(repo_path)
-        
-        args_pull = ['git', 'pull']
-        return self._wrapper_run_process(args_pull, repo_path)
+            command = self.GIT_CHECKOUT_CMD + self._process.build_branch
+            self._run_process_command(command, repository_path)
 
-    def _reset_repository(self, repoitories_path):
-        self._wrapper_run_process(self.GIT_CLEAN_CMD, repoitories_path)
-        self._wrapper_run_process(self.GIT_CLEAN_CMD, repoitories_path)
-        self._wrapper_run_process(self.GIT_REST_HARD_MASTER_CMD, \
-                                                            repoitories_path)
+    def _update_repository(self, repository_path):
+        if self._process.is_to_update:
+            return self._run_process_command(self.GIT_PULL_CMD, \
+                                                            repository_path)   
 
-    def _checkout_build_branch(self, repository_path):
-        command = self.GIT_CHECKOUT_CMD + self._process.build_branch
-        self._wrapper_run_process(command, repository_path)
+    def _execute_build_process(self, repository, pull_result):
+        try:
+            self._is_process_to_build(pull_result, repository.initial)
 
-    def _check_is_process_to_build(self):
-        return True \
-            if self._process.is_build_all or self._process.is_clean_m2 or\
-                                                self._process.is_skip_menu\
-            else False
+            self._run_process_command(repository.build_command, \
+                                                    repository._absolute_path)
+        except ProcessNotValid as e:
+            logger.info(e)
 
+    def _is_process_to_build(self, pull_result, initial):
+        if not self._process.is_build_all \
+            or not self._process.is_clean_m2 \
+                or not self._process.is_skip_menu \
+                    or Const.PULL_UPDATED in pull_result:
+            raise ProcessNotValid(f'The {initial} has not been built!')
 
-    def _wrapper_run_process(self, command, path):
+    def _run_process_command(self, command, path):
         try:
             process = subprocess.run(command, shell=True, check=True, \
                                         stdout=subprocess.PIPE, cwd=path, \
                                             universal_newlines=True)
-            logger.info(f'The command: "{command}" to the repository: {path} '+\
-                            f'has executed successfully')
+
+            logger.info(f'The command: "{command}" to the repository: ' +\
+                                        f'{path} has executed successfully')
             return process.stdout
         except subprocess.CalledProcessError as e:
             raise BuilderProcessException(\
@@ -118,17 +121,20 @@ class Repository:
     _build_command = None
 
     def __init__(self, absolute_path):
-        if os.path.isdir(absolute_path):
-            self._absolute_path = absolute_path
-            self._build_initial_value()
-        else:
-            logger.warning(f"The directory {absolute_path} doesn't exist!!!")
+        self._is_valid_absolute_path(absolute_path)        
+        self._absolute_path = absolute_path        
+        self._build_initial_value()
+
+    def _is_valid_absolute_path(self, absolute_path):
+        if not os.path.isdir(absolute_path):
+            raise BuilderProcessException(\
+                            f"The directory {absolute_path} doesn't exist!!!")
 
     def _build_initial_value(self):
         self._initial = self._absolute_path.split('.')[-1].upper()
 
     @property
-    def repo_initial(self):
+    def initial(self):
         return self._initial \
             if self._initial \
                 else self._build_initial_value()       
@@ -144,7 +150,8 @@ class Repository:
         if command in Const.BUILD_CMDS.values():
             self._build_command = command
         else:
-            raise ValueError(f"The '{command}' is not a valid Maven command.")
+            raise BuilderProcessException(\
+                            f"The '{command}' is not a valid Maven command.")
 
     def __str__(self):
         return self._initial
@@ -266,7 +273,10 @@ class MultipleBuilderCLI:
             user_responses = self._request_with_multiple_response(menu)
 
             for response in user_responses:
-                if not self._is_valid_response_by_indexes(response, indexes):
+                try:
+                    self._is_valid_response_by_indexes(response, indexes)
+                except ProcessNotValid as e:
+                    logger.warning(e)
                     break
             else:
                 return user_responses
@@ -284,11 +294,8 @@ class MultipleBuilderCLI:
 
     def _is_valid_response_by_indexes(self, response, indexes):
         if int(response) not in indexes:
-            logger.warning(f'Invalid choice: Failed - Not a valid index. ' +\
-                                'Please choose a valid option')
-            return False
-        else:
-            return True
+            raise ProcessNotValid(f'Invalid choice: Failed - Not a ' +\
+                                f'valid index. Please choose a valid option')
 
     def _extract_valid_repo(self, menu, repos):
         return set([m for repo in repos \
@@ -336,9 +343,13 @@ class MultipleBuilderCLI:
         user_awser = None
 
         while True:
-            user_awser = self._request_user_response(menu)
-            if self._is_valid_response_by_indexes(user_awser, indexes):
+            try:
+                user_awser = self._request_user_response(menu)
+
+                self._is_valid_response_by_indexes(user_awser, indexes)
                 break
+            except ProcessNotValid as e:
+                logger.warning(e)
 
         return user_awser
 
@@ -418,16 +429,25 @@ class MultipleBuilderCLIController:
 
         return PathHelper.fetch_repo_paths(paths_from_command_args)
 
-    def _initiate_repositories(self, repos_paths):
-        return [Repository(path) for path in repos_paths]
+    def _initiate_repositories(self, repositories_paths):
+        repositories = list()
+
+        for path in repositories_paths:
+            try:
+                repositories.append(Repository(path))
+
+            except BuilderProcessException as e:
+                logger.warning(e)
+        
+        return repositories
 
     def _get_repositories_initial(self, repositories):
-        return [r.repo_initial for r in repositories]
+        return [r.initial for r in repositories]
 
     def _find_out_user_repositories(self, choices, repositories):
         return [repository for repository in repositories \
                         for choice in choices \
-                            if choice.endswith(repository.repo_initial)]
+                            if choice.endswith(repository.initial)]
 
     def _set_build_command_for_each_repository(self, process, repositories):
         build_cmd = self._get_build_command(process)
