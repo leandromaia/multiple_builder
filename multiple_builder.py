@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import abc
 import argparse
 import os
 import logging
@@ -46,10 +47,10 @@ class Const:
 
 
 class ProcessHandler:
-    GIT_CHECKOUT_CMD = 'git checkout'
+    GIT_CHECKOUT_CMD = 'git checkout '
     GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
     GIT_CLEAN_CMD = 'yes y | git clean -fxd'
-    GIT_REST_HARD_MASTER_CMD = 'git reset --hard origin/master'
+    GIT_RESET_HARD_MASTER_CMD = 'git reset --hard origin/master'
     GIT_PULL_CMD = 'git pull'
 
     def __init__(self, process):
@@ -72,12 +73,23 @@ class ProcessHandler:
     def _prepare_repository(self, repository_path):
         if self._process.is_to_update and self._process.is_to_reset:
             self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
-            self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
-            self._run_process_command(self.GIT_REST_HARD_MASTER_CMD, \
+            self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
+                                                            repository_path)
+            self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
                                                             repository_path)
         else:
             command = self.GIT_CHECKOUT_CMD + self._process.build_branch
             self._run_process_command(command, repository_path)
+
+    def _reset_branch(self, repository_path):
+        if (self._process.is_to_update and self._process.is_to_reset) \
+                or self._process.is_build_full \
+                    or self._process.is_skip_menu:
+            self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+            self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
+                                                            repository_path)
+            self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
+                                                            repository_path)
 
     def _update_repository(self, repository_path):
         if self._process.is_to_update:
@@ -102,13 +114,13 @@ class ProcessHandler:
 
     def _run_process_command(self, command, path):
         try:
-            process = subprocess.run(command, shell=True, check=True, \
-                                        stdout=subprocess.PIPE, cwd=path, \
-                                            universal_newlines=True)
+            # process = subprocess.run(command, shell=True, check=True, \
+            #                             stdout=subprocess.PIPE, cwd=path, \
+            #                                 universal_newlines=True)
 
             logger.info(f'The command: "{command}" to the repository: ' +\
                                         f'{path} has executed successfully')
-            return process.stdout
+            return 'process.stdout'
         except subprocess.CalledProcessError as e:
             raise BuilderProcessException(\
                 f'Failed executing the command: "{command}". '+\
@@ -231,16 +243,16 @@ class MultipleBuilderCLI:
                 +'\n#######################################################'
     MENU_OPTIONS_TO_ONE_RESPONSE = (1, 2)
     CORRECT_OPTION_TO_ONE_ANSWER = 1
-    REQUEST_IS_TO_RESET_MSG = 'Do you want to reset your repositories branch, '\
-                        +'using "git reset --hard <<branch name >>?":\n1'\
+    REQUEST_IS_TO_RESET_MSG = 'Do you want to reset your repositories branch,'\
+                        +' using "git reset --hard <<branch name >>?":\n1'\
                         +' - Yes\n2 - No\nR: '
     REQUEST_IS_TO_UPDATE_MSG = 'Do you want to update all your repositories'\
                         +' branch, using "git pull":\n1 - Yes\n2 - No\nR: '
     REQUEST_WAY_BUILD_REPO_MSG = 'Do you want build all your repositories '\
                                     +'or just that has been updated?'\
-                                    +'n1 - All.\n2 - Just the updated.\nR: '
+                                    +'\n1 - All.\n2 - Just the updated.\nR: '
     REQUEST_BUILD_CMD_MSG = 'Which Maven command should to use '\
-                                    +'in build process:'
+                                    +'in build process:\n'
 
     REQUEST_BRANCH_TO_BUILD_MSG = 'Which branch all the repositories should '\
                             +'to build?\nType only M to default branch master'\
@@ -359,6 +371,71 @@ class MultipleBuilderCLI:
                                 else False
 
 
+class ProcessAbs(metaclass=abc.ABCMeta):
+    GIT_CHECKOUT_CMD = 'git checkout '
+    GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
+    GIT_CLEAN_CMD = 'yes y | git clean -fxd'
+    GIT_RESET_HARD_MASTER_CMD = 'git reset --hard origin/master'
+    GIT_PULL_CMD = 'git pull'
+
+    def __init__(self):
+        self.is_build_full = False
+        self.is_clean_m2 = False
+        self.is_to_reset = False
+        self.is_to_update = False
+        self.is_skip_menu = False
+        self.is_build_all = False
+        self.build_branch = Const.BUILD_BRANCH
+
+    def execute_build_process(self, repository):
+        self._prepare_repository(repository._absolute_path)
+        self._run_process_command(repository.build_command, \
+                                                    repository._absolute_path)
+        
+
+    @abc.abstractmethod
+    def _prepare_repository(self, repository_path):
+        pass
+
+    def _run_process_command(self, command, path):
+        try:
+            # process = subprocess.run(command, shell=True, check=True, \
+            #                             stdout=subprocess.PIPE, cwd=path, \
+            #                                 universal_newlines=True)
+
+            logger.info(f'The command: "{command}" to the repository: ' +\
+                                        f'{path} has executed successfully')
+            return 'process.stdout'
+        except subprocess.CalledProcessError as e:
+            raise BuilderProcessException(\
+                f'Failed executing the command: "{command}". '+\
+                                f'to the repository {path} '+\
+                                    f'Exception: {e}')
+
+
+class ProcessPersonalized(ProcessAbs):
+
+    def __init__(self):
+        super().__init__()
+        self.is_to_reset = False
+        self.is_to_update = False
+        self.is_build_all = False
+        self.build_branch = Const.BUILD_BRANCH
+
+    def _prepare_repository(self, repository_path):
+        self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+        self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
+                                                        repository_path)
+        self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
+                                                        repository_path)
+        
+    
+
+
+
+
+
+
 class Process:
     def __init__(self):
         self.is_build_full = False
@@ -456,7 +533,7 @@ class MultipleBuilderCLIController:
             repository.build_command = build_cmd
 
     def _get_build_command(self, process):
-        if process.is_build_full and process.is_skip_menu:
+        if process.is_build_full or process.is_skip_menu:
             return Const.BUILD_CMDS.get(1)
         else:
             return self._cli.request_type_build_comands()
@@ -585,14 +662,6 @@ def setup_logger():
     logFormatter = '> %(levelname)s - %(message)s'
     logging.basicConfig(format=logFormatter, level=logging.DEBUG)
     logger = logging.getLogger(__name__)
-
-
-def initiate_process(command_processor):
-        process = Process()
-        process.is_build_full = command_processor.is_build_full()
-        process.is_clean_m2 = command_processor.is_to_clean_m2()
-        process.is_skip_menu = command_processor.is_to_skip_menu()
-        return process
 
 
 def start_build():
