@@ -128,6 +128,98 @@ class ProcessHandler:
                                     f'Exception: {e}')
 
 
+class ProcessAbs(metaclass=abc.ABCMeta):
+    GIT_CHECKOUT_CMD = 'git checkout '
+    GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
+    GIT_CLEAN_CMD = 'yes y | git clean -fxd'
+    GIT_RESET_HARD_MASTER_CMD = 'git reset --hard origin/master'
+    GIT_PULL_CMD = 'git pull'
+
+    def __init__(self):
+        self.is_build_full = False
+        self.is_clean_m2 = False
+        self.is_to_reset = False
+        self.is_to_update = False
+        self.is_skip_menu = False
+        self.is_build_all = False
+        self.build_branch = Const.BUILD_BRANCH
+
+    def execute_build_process(self, repository):
+        self._prepare_repository(repository._absolute_path)
+        self._run_process_command(repository.build_command, \
+                                                    repository._absolute_path)
+
+    @abc.abstractmethod
+    def _prepare_repository(self, repository_path):
+        pass
+
+    def _run_process_command(self, command, path):
+        try:
+            # process = subprocess.run(command, shell=True, check=True, \
+            #                             stdout=subprocess.PIPE, cwd=path, \
+            #                                 universal_newlines=True)
+
+            logger.info(f'The command: "{command}" to the repository: ' +\
+                                        f'{path} has executed successfully')
+            return 'process.stdout'
+        except subprocess.CalledProcessError as e:
+            raise BuilderProcessException(\
+                f'Failed executing the command: "{command}". '+\
+                                f'to the repository {path} '+\
+                                    f'Exception: {e}')
+
+
+class ProcessPersonalized(ProcessAbs):
+
+    def __init__(self):
+        super().__init__()
+        self.is_to_reset = False
+        self.is_to_update = False
+        self.is_build_all = False
+        self.build_branch = Const.BUILD_BRANCH
+
+    def _prepare_repository(self, repository_path):
+        self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+        self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
+                                                        repository_path)
+        self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
+                                                        repository_path)
+
+
+class ProcessBuildFull(ProcessAbs):
+
+    def __init__(self):
+        super().__init__()
+        self.is_to_reset = True
+        self.is_to_update = True
+        self.is_build_all = True
+        self.build_branch = Const.BUILD_BRANCH
+
+    def _prepare_repository(self, repository_path):
+        self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+        self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
+                                                        repository_path)
+        self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
+                                                        repository_path)
+    
+
+class ProcessSkipMenu(ProcessAbs):
+
+    def __init__(self):
+        super().__init__()
+        self.is_to_reset = True
+        self.is_to_update = True
+        self.is_build_all = True
+        self.build_branch = Const.BUILD_BRANCH
+
+    def _prepare_repository(self, repository_path):
+        self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
+        self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
+                                                        repository_path)
+        self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
+                                                        repository_path)
+
+
 class Repository:
     _initial = None
     _build_command = None
@@ -371,65 +463,7 @@ class MultipleBuilderCLI:
                                 else False
 
 
-class ProcessAbs(metaclass=abc.ABCMeta):
-    GIT_CHECKOUT_CMD = 'git checkout '
-    GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
-    GIT_CLEAN_CMD = 'yes y | git clean -fxd'
-    GIT_RESET_HARD_MASTER_CMD = 'git reset --hard origin/master'
-    GIT_PULL_CMD = 'git pull'
 
-    def __init__(self):
-        self.is_build_full = False
-        self.is_clean_m2 = False
-        self.is_to_reset = False
-        self.is_to_update = False
-        self.is_skip_menu = False
-        self.is_build_all = False
-        self.build_branch = Const.BUILD_BRANCH
-
-    def execute_build_process(self, repository):
-        self._prepare_repository(repository._absolute_path)
-        self._run_process_command(repository.build_command, \
-                                                    repository._absolute_path)
-        
-
-    @abc.abstractmethod
-    def _prepare_repository(self, repository_path):
-        pass
-
-    def _run_process_command(self, command, path):
-        try:
-            # process = subprocess.run(command, shell=True, check=True, \
-            #                             stdout=subprocess.PIPE, cwd=path, \
-            #                                 universal_newlines=True)
-
-            logger.info(f'The command: "{command}" to the repository: ' +\
-                                        f'{path} has executed successfully')
-            return 'process.stdout'
-        except subprocess.CalledProcessError as e:
-            raise BuilderProcessException(\
-                f'Failed executing the command: "{command}". '+\
-                                f'to the repository {path} '+\
-                                    f'Exception: {e}')
-
-
-class ProcessPersonalized(ProcessAbs):
-
-    def __init__(self):
-        super().__init__()
-        self.is_to_reset = False
-        self.is_to_update = False
-        self.is_build_all = False
-        self.build_branch = Const.BUILD_BRANCH
-
-    def _prepare_repository(self, repository_path):
-        self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
-        self._run_process_command(self.GIT_CHECKOUT_MASTER_CMD, \
-                                                        repository_path)
-        self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
-                                                        repository_path)
-        
-    
 
 
 
@@ -457,30 +491,33 @@ class MultipleBuilderCLIController:
     def build_process(self):
         process = self._initiate_essential_process()
 
-        self._set_detailed_process_values(process)
+        self._set_personalized_process_values(process)
 
         return process
 
     def _initiate_essential_process(self):
-        process = Process()
+        process = None
 
-        process.is_build_full = self._command_args.is_build_full()
+        if self._command_args.is_to_skip_menu():
+            process = ProcessSkipMenu()
+        elif self._command_args.is_build_full():
+            process = ProcessBuildFull()
+        else:
+            process = ProcessPersonalized()
+            self._set_personalized_process_values(process)
+
         process.is_clean_m2 = self._command_args.is_to_clean_m2()
-        process.is_skip_menu = self._command_args.is_to_skip_menu()
 
         return process
 
-    def _set_detailed_process_values(self, process):
-        if not process.is_skip_menu:
-            process.is_to_reset = self._cli.request_is_to_reset()
-
-            self._set_update_process_value(process)
-
-            process.build_branch = self._cli.request_branch_to_build()
-
-    def _set_update_process_value(self, process):
+    def _set_personalized_process_values(self, process):
+        process.is_to_reset = self._cli.request_is_to_reset()
         process.is_to_update = self._cli.request_is_to_update()
+        process.build_branch = self._cli.request_branch_to_build()
 
+        self._set_is_to_build_all(process)
+
+    def _set_is_to_build_all(self, process):
         if process.is_to_update:
             process.is_build_all = self._cli.request_is_to_build_all()
 
