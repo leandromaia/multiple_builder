@@ -489,13 +489,6 @@ class MultipleBuilderCLIController:
         self._process = None
 
     def build_process(self):
-        process = self._initiate_essential_process()
-
-        self._set_personalized_process_values(process)
-
-        return process
-
-    def _initiate_essential_process(self):
         process = None
 
         if self._command_args.is_to_skip_menu():
@@ -525,18 +518,8 @@ class MultipleBuilderCLIController:
         repositories_paths = self._get_repositories_paths()
 
         repositories = self._initiate_repositories(repositories_paths)
-
-        repositories_initial = self._get_repositories_initial(repositories)
-
-        user_response = self._cli.request_user_repositories(\
-                                                        repositories_initial)
-
-        user_repositories = self._find_out_user_repositories(\
-                                                user_response, repositories)
-
-        self._set_build_command_for_each_repository(process, user_repositories)
-
-        return user_repositories
+   
+        return self._setup_personalized_repository(process, repositories)
 
     def _get_repositories_paths(self):
         paths_from_command_args = self._command_args.repos_directory
@@ -549,31 +532,37 @@ class MultipleBuilderCLIController:
         for path in repositories_paths:
             try:
                 repositories.append(Repository(path))
-
             except BuilderProcessException as e:
                 logger.warning(e)
         
         return repositories
 
-    def _get_repositories_initial(self, repositories):
-        return [r.initial for r in repositories]
+    def _setup_personalized_repository(self, process, repositories):
+        if isinstance(process, ProcessPersonalized):
+            self._set_build_command_for_each_repository(repositories)
 
-    def _find_out_user_repositories(self, choices, repositories):
-        return [repository for repository in repositories \
-                        for choice in choices \
-                            if choice.endswith(repository.initial)]
+            repositories_initial = self._get_repositories_initial(repositories)
 
-    def _set_build_command_for_each_repository(self, process, repositories):
-        build_cmd = self._get_build_command(process)
+            user_response = self._cli.request_user_repositories(\
+                                                        repositories_initial)
+            
+            return self._filter_repositories_user_response(user_response, \
+                                                                repositories)
+        
+        
+    def _set_build_command_for_each_repository(self, repositories):
+        build_cmd = self._cli.request_type_build_comands()
 
         for repository in repositories:
             repository.build_command = build_cmd
 
-    def _get_build_command(self, process):
-        if process.is_build_full or process.is_skip_menu:
-            return Const.BUILD_CMDS.get(1)
-        else:
-            return self._cli.request_type_build_comands()
+    def _get_repositories_initial(self, repositories):
+        return [r.initial for r in repositories]
+
+    def _filter_repositories_user_response(self, choices, repositories):
+        return [repository for repository in repositories \
+                        for choice in choices \
+                            if choice.endswith(repository.initial)]
 
 
 class CommandArgument(TypedDict, total=False):
