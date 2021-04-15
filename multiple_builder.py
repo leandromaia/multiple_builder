@@ -58,6 +58,8 @@ class ProcessBuildFull:
         self.is_to_update = True
         self.is_build_all = True
         self.build_branch = Const.BUILD_BRANCH
+        self.build_command = None
+        self.repositories = list()
 
     def execute_build_process(self, repositories):
         self._clean_m2_project_folder()
@@ -99,9 +101,8 @@ class ProcessBuildFull:
             logger.info(e)
 
     def _is_process_to_build(self, pull_result, initial):
-        if not self.is_build_all \
-            or not self.is_clean_m2 \
-                or Const.PULL_UPDATED in pull_result:
+        if (not self.is_build_all or not self.is_clean_m2) \
+                and Const.PULL_UPDATED in pull_result:
             raise ProcessNotValid(f'The {initial} has not been built!')
 
     def _run_process_command(self, command, path):
@@ -383,39 +384,60 @@ class MultipleBuilderCLIController:
         self._command_args  = CommandArgsProcessor()
         self._process = None
 
-    def build_process(self):
+    def build_process(self, repositories):
         process = None
 
         if self._command_args.is_build_full():
             process = ProcessBuildFull()
+            process.repositories = repositories
         elif self._command_args.is_to_skip_menu():
             process = ProcessSkipMenu()
+            self._setup_personalized_repository(process, repositories)
         else:
             process = ProcessPersonalized()
+            self._setup_personalized_repository(process, repositories)
             self._set_personalized_process_values(process)
 
         process.is_clean_m2 = self._command_args.is_to_clean_m2()
 
         return process
 
+    def _setup_personalized_repository(self, process, repositories):
+        repositories_initial = self._get_repositories_initial(repositories)
+        
+        user_response = self._cli.request_user_repositories(\
+                                                    repositories_initial)
+        
+        process.repositories = self._filter_repositories_user_response(\
+                                                        user_response, \
+                                                            repositories)
+
+    def _get_repositories_initial(self, repositories):
+        return [r.initial for r in repositories]
+
+    def _filter_repositories_user_response(self, choices, repositories):
+        return [repository for repository in repositories \
+                        for choice in choices \
+                            if choice.endswith(repository.initial)]
+    
     def _set_personalized_process_values(self, process):
+        process.build_command = self._cli.request_type_build_comands()
+
         process.is_to_reset = self._cli.request_is_to_reset()
         process.is_to_update = self._cli.request_is_to_update()
         process.build_branch = self._cli.request_branch_to_build()
 
-        self._set_is_to_build_all(process)
-
+        self._set_is_to_build_all(process)   
+    
     def _set_is_to_build_all(self, process):
         if process.is_to_update:
             process.is_build_all = self._cli.request_is_to_build_all()
 
-    def build_repositories(self, process):
+    def build_repositories(self):
         repositories_paths = self._get_repositories_paths()
 
-        repositories = self._initiate_repositories(repositories_paths)
+        return self._initiate_repositories(repositories_paths)
    
-        return self._setup_personalized_repository(process, repositories)
-
     def _get_repositories_paths(self):
         paths_from_command_args = self._command_args.repos_directory
 
@@ -431,36 +453,7 @@ class MultipleBuilderCLIController:
                 logger.warning(e)
         
         return repositories
-
-    def _setup_personalized_repository(self, process, repositories):
-        if isinstance(process, ProcessPersonalized):
-            self._set_build_command_for_each_repository(repositories)
-
-        if isinstance(process, ProcessPersonalized) \
-            or isinstance(process, ProcessSkipMenu):
-            repositories_initial = self._get_repositories_initial(repositories)
-
-            user_response = self._cli.request_user_repositories(\
-                                                        repositories_initial)
-            
-            repositories = self._filter_repositories_user_response(\
-                                                            user_response, \
-                                                                repositories)
-        return repositories
    
-    def _set_build_command_for_each_repository(self, repositories):
-        build_cmd = self._cli.request_type_build_comands()
-
-        for repository in repositories:
-            repository.build_command = build_cmd
-
-    def _get_repositories_initial(self, repositories):
-        return [r.initial for r in repositories]
-
-    def _filter_repositories_user_response(self, choices, repositories):
-        return [repository for repository in repositories \
-                        for choice in choices \
-                            if choice.endswith(repository.initial)]
 
 
 class CommandArgument(TypedDict, total=False):
@@ -488,8 +481,9 @@ class CommandArgsProcessor:
     BUILD_NAME = "--build-full"
     BUILD_HELP = "Execute the full build command: "+\
                     f"'{Const.BUILD_CMDS.get(1)}'. " +\
-                    "This option also skip the menu to select the \
-                    others Maven options."
+                    "Passing this option all the found repositories \
+                    will be update and build automatically\
+                    and the menu is skipped."
 
     CLEAN_M2_FLAG = "-c"
     CLEAN_M2_NAME = "--clean-m2"
@@ -504,9 +498,8 @@ class CommandArgsProcessor:
 
     SKIP_MENU_FLAG = "-sm"
     SKIP_MENU_NAME = "--skip-menu"
-    SKIP_MENU_HELP = "Skip visualization of the CLI User Menu. \
-                        Passing this option all the found repositories \
-                        will be update and build automatically."
+    SKIP_MENU_HELP = "This option allow to select which repository must be \
+                    updated, but all the others menu questions is skipped."
 
     def __init__(self):
         parser = self._initiate_parser()
@@ -537,12 +530,6 @@ class CommandArgsProcessor:
             help = self.CLEAN_M2_HELP
         )
 
-        repos_dir = CommandArgument(
-            flag = self.REPOS_DIR_FLAG,
-            name = self.REPOS_DIR_NAME,
-            help = self.REPOS_DIR_HELP
-        )
-
         skip_menu = CommandArgument(
             flag = self.SKIP_MENU_FLAG,
             name = self.SKIP_MENU_NAME,
@@ -550,10 +537,16 @@ class CommandArgsProcessor:
             help = self.SKIP_MENU_HELP
         )
 
+        repos_dir = CommandArgument(
+            flag = self.REPOS_DIR_FLAG,
+            name = self.REPOS_DIR_NAME,
+            help = self.REPOS_DIR_HELP
+        )
+
         arg_list.append(build_full)
         arg_list.append(clean_m2)
-        arg_list.append(repos_dir)
         arg_list.append(skip_menu)
+        arg_list.append(repos_dir)
 
         return arg_list
 
@@ -594,10 +587,10 @@ def start_build():
 
         cli_controller = MultipleBuilderCLIController()
 
-        process = cli_controller.build_process()
+        repositories = cli_controller.build_repositories()
+        
+        process = cli_controller.build_process(repositories)
 
-        repositories = cli_controller.build_repositories(process)
-              
         process.execute_build_process(repositories)
 
     except KeyboardInterrupt:
