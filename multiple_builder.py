@@ -58,13 +58,13 @@ class ProcessBuildFull:
         self.is_to_update = True
         self.is_build_all = True
         self.build_branch = Const.BUILD_BRANCH
-        self.build_command = None
+        self._build_command = None
         self.repositories = list()
 
-    def execute_build_process(self, repositories):
+    def build_repositories(self):
         self._clean_m2_project_folder()
 
-        for repository in repositories:
+        for repository in self.repositories:
             repository_path = repository._absolute_path
 
             self._prepare_repository(repository_path)
@@ -73,6 +73,20 @@ class ProcessBuildFull:
 
             self._execute_build_process(repository, pull_result)
 
+    @property
+    def build_command(self):
+        return self._build_command \
+            if self._build_command \
+                else Const.BUILD_CMDS.get(1)
+
+    @build_command.setter
+    def build_command(self, command):
+        if command in Const.BUILD_CMDS.values():
+            self._build_command = command
+        else:
+            raise BuilderProcessException(\
+                            f"The '{command}' is not a valid Maven command.")
+    
     def _clean_m2_project_folder(self):
         if self.is_clean_m2:
             PathHelper.delete_m2()
@@ -95,21 +109,22 @@ class ProcessBuildFull:
         try:
             self._is_process_to_build(pull_result, repository.initial)
 
-            self._run_process_command(repository.build_command, \
+            self._run_process_command(self.build_command, \
                                                     repository._absolute_path)
         except ProcessNotValid as e:
             logger.info(e)
 
     def _is_process_to_build(self, pull_result, initial):
         if (not self.is_build_all or not self.is_clean_m2) \
-                and Const.PULL_UPDATED in pull_result:
+                and (pull_result is not None \
+                    and Const.PULL_UPDATED in pull_result):
             raise ProcessNotValid(f'The {initial} has not been built!')
 
     def _run_process_command(self, command, path):
         try:
-            # process = subprocess.run(command, shell=True, check=True, \
-            #                             stdout=subprocess.PIPE, cwd=path, \
-            #                                 universal_newlines=True)
+            process = subprocess.run(command, shell=True, check=True, \
+                                        stdout=subprocess.PIPE, cwd=path, \
+                                            universal_newlines=True)
 
             logger.info(f'The command: "{command}" to the repository: ' +\
                                         f'{path} has executed successfully')
@@ -136,7 +151,6 @@ class ProcessSkipMenu(ProcessBuildFull):
 
 class Repository:
     _initial = None
-    _build_command = None
 
     def __init__(self, absolute_path):
         self._is_valid_absolute_path(absolute_path)        
@@ -156,20 +170,6 @@ class Repository:
         return self._initial \
             if self._initial \
                 else self._build_initial_value()       
-
-    @property
-    def build_command(self):
-        return self._build_command \
-            if self._build_command \
-                else Const.BUILD_CMDS.get(1)
-
-    @build_command.setter
-    def build_command(self, command):
-        if command in Const.BUILD_CMDS.values():
-            self._build_command = command
-        else:
-            raise BuilderProcessException(\
-                            f"The '{command}' is not a valid Maven command.")
 
     def __str__(self):
         return self._initial
@@ -382,9 +382,8 @@ class MultipleBuilderCLIController:
     def __init__(self):
         self._cli = MultipleBuilderCLI()
         self._command_args  = CommandArgsProcessor()
-        self._process = None
 
-    def build_process(self, repositories):
+    def create_process(self, repositories):
         process = None
 
         if self._command_args.is_build_full():
@@ -407,7 +406,7 @@ class MultipleBuilderCLIController:
         
         user_response = self._cli.request_user_repositories(\
                                                     repositories_initial)
-        
+                                                    
         process.repositories = self._filter_repositories_user_response(\
                                                         user_response, \
                                                             repositories)
@@ -433,7 +432,7 @@ class MultipleBuilderCLIController:
         if process.is_to_update:
             process.is_build_all = self._cli.request_is_to_build_all()
 
-    def build_repositories(self):
+    def create_repositories(self):
         repositories_paths = self._get_repositories_paths()
 
         return self._initiate_repositories(repositories_paths)
@@ -587,11 +586,11 @@ def start_build():
 
         cli_controller = MultipleBuilderCLIController()
 
-        repositories = cli_controller.build_repositories()
+        repositories = cli_controller.create_repositories()
         
-        process = cli_controller.build_process(repositories)
+        process = cli_controller.create_process(repositories)
 
-        process.execute_build_process(repositories)
+        process.build_repositories()
 
     except KeyboardInterrupt:
         logger.info(f'The process has finished by CTRL+C.')
