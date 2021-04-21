@@ -122,9 +122,9 @@ class ProcessBuildFull:
 
     def _run_process_command(self, command, path):
         try:
-            process = subprocess.run(command, shell=True, check=True, \
-                                        stdout=subprocess.PIPE, cwd=path, \
-                                            universal_newlines=True)
+            # process = subprocess.run(command, shell=True, check=True, \
+            #                             stdout=subprocess.PIPE, cwd=path, \
+            #                                 universal_newlines=True)
 
             logger.info(f'The command: "{command}" to the repository: ' +\
                                         f'{path} has executed successfully')
@@ -480,13 +480,13 @@ class CommandArgsProcessor:
     BUILD_NAME = "--build-full"
     BUILD_HELP = "Execute the full build command: "+\
                     f"'{Const.BUILD_CMDS.get(1)}'. " +\
-                    "Passing this option all the found repositories \
-                    will be update and build automatically\
-                    and the menu is skipped."
+                    "Passing this option the menu is skipped, all the \
+                    found repositories will be updated and build \
+                    automatically."
 
     CLEAN_M2_FLAG = "-c"
     CLEAN_M2_NAME = "--clean-m2"
-    CLEAN_M2_HELP = "Delete all folders and files from project m2 folder."
+    CLEAN_M2_HELP = "Delete all folders and files from .m2 folder."
 
     REPOS_DIR_FLAG = "-d"
     REPOS_DIR_NAME = "--repos-directory"
