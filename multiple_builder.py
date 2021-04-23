@@ -8,25 +8,27 @@ import shutil
 from pathlib import Path
 from typing import TypedDict, Text
 
-
+#Global object used to logger the hard code messages
 logger = None
 
 
 class BuilderProcessException(Exception):
-    "Raise a found error during the Multiple Builder process executing"
+    '''Raise a found error during the Multiple Builder process executing.'''
     pass
 
 
 class ProcessNotValid(Exception):
-    "Raise a warning indicating an invalid rule for execute a process"
+    '''Raise a warning indicating an invalid rule for execute a process.'''
     pass
 
 
 class Const:
-    PULL_UPDATED = "Already up to date"
-    
+    '''
+    This object is responsible for store all the constants required
+    in the others class process.
+    '''
+    PULL_UPDATED = "Already up to date"    
     M2_PATH = ".m2/repository/"
-
     REPO_PATHS = ('com.ericsson.bss.ael.aep', 
                 'com.ericsson.bss.ael.aep.plugins',
                         'com.ericsson.bss.ael.bae',
@@ -46,6 +48,18 @@ class Const:
 
 
 class ProcessBuildFull:
+    '''
+    This objects represents a process that can be executed with differents
+    Git and Maven commands.
+
+    When this object is initiated a empty list of Repository is created,
+    the attribute build_branch is create with the default build command
+    and the others attributes is created as follow:
+    - is_clean_m2 = False
+    - is_to_reset = True
+    - is_to_update = True
+    - is_build_all = True
+    '''
     GIT_CHECKOUT_CMD = 'git checkout '
     GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
     GIT_CLEAN_CMD = 'yes y | git clean -fxd'
@@ -57,11 +71,17 @@ class ProcessBuildFull:
         self.is_to_reset = True
         self.is_to_update = True
         self.is_build_all = True
-        self.build_branch = Const.BUILD_BRANCH
         self._build_command = None
+        self.build_branch = Const.BUILD_BRANCH
         self.repositories = list()
 
     def build_repositories(self):
+        '''
+        Before start the building repositories process,  is checked if it
+        is required to clean the .m2 folder thats will influence in the
+        build process. According to the object attributes the repositories
+        instance will  be built.
+        '''
         self._clean_m2_project_folder()
 
         for repository in self.repositories:
@@ -75,12 +95,20 @@ class ProcessBuildFull:
 
     @property
     def build_command(self):
+        '''
+        Return the _build_command attribute value if it valid or the 
+        default command value.
+        '''
         return self._build_command \
             if self._build_command \
                 else Const.BUILD_CMDS.get(1)
 
     @build_command.setter
     def build_command(self, command):
+        '''
+        Set the arg command to the attribute _build_command if it is a
+        known command or the default build command otherwise.
+        '''
         if command in Const.BUILD_CMDS.values():
             self._build_command = command
         else:
@@ -122,9 +150,9 @@ class ProcessBuildFull:
 
     def _run_process_command(self, command, path):
         try:
-            # process = subprocess.run(command, shell=True, check=True, \
-            #                             stdout=subprocess.PIPE, cwd=path, \
-            #                                 universal_newlines=True)
+            process = subprocess.run(command, shell=True, check=True, \
+                                        stdout=subprocess.PIPE, cwd=path, \
+                                            universal_newlines=True)
 
             logger.info(f'The command: "{command}" to the repository: ' +\
                                         f'{path} has executed successfully')
@@ -137,6 +165,15 @@ class ProcessBuildFull:
 
 
 class ProcessPersonalized(ProcessBuildFull):
+    '''
+    Inherits from the class ProcessBuildFull change the following
+    attributes values:
+    - is_to_reset = False
+    - is_to_update = False
+    - is_build_all = False
+    This object represents the process that the user customize according
+    their needs.
+    '''
 
     def __init__(self):
         super().__init__()
@@ -146,13 +183,24 @@ class ProcessPersonalized(ProcessBuildFull):
    
 
 class ProcessSkipMenu(ProcessBuildFull):
+    '''
+    Inherits from the class ProcessBuildFull in order to represent
+    the process that the user wants just pick wich repository to build
+    using the ProcessBuildFull configuration to build it.
+    '''
     pass
 
 
 class Repository:
-    _initial = None
+    '''
+    The Repository object contains the paths and initial values
+    for a valid Git repository.
+    In the instance initiate an absolute path is required and its
+    validation is performed.
+    '''    
 
     def __init__(self, absolute_path):
+        self._initial = None
         self._is_valid_absolute_path(absolute_path)        
         self._absolute_path = absolute_path        
         self._build_initial_value()
@@ -167,19 +215,27 @@ class Repository:
 
     @property
     def initial(self):
+        '''Return a short name as a prefix for the object Repository'''
         return self._initial \
             if self._initial \
                 else self._build_initial_value()       
 
     def __str__(self):
+        '''Overwrite the __str__ object returning the _initial attribute'''
         return self._initial
 
 
 class PathHelper:
+    '''
+    This is a util class to handle with path and directory process
+    by static methods.
+    '''
 
     @staticmethod
     def delete_m2():
-        """Delete all the folders and files from the Maven m2 folder"""
+        '''
+        Delete all the folders and files from the Maven m2 folder
+        '''
         m2_path = PathHelper._get_m2_path()
 
         PathHelper._validate_m2_path(m2_path)
@@ -207,8 +263,10 @@ class PathHelper:
 
     @staticmethod
     def fetch_repo_paths(root_path):
-        """Process the root path and extract all valid repository paths
-        from the root path."""
+        '''
+        Process the root path and extract all valid repository paths
+        from the root path.
+        '''
         root_path = PathHelper._get_valid_root_path(root_path)
 
         absolute_paths = PathHelper.\
@@ -242,6 +300,11 @@ class PathHelper:
 
 
 class MultipleBuilderCLI:
+    '''
+    This object is responsible for be a command line interface with user,
+    using the built-in Python functions: print and input to show messages and
+    request data.
+    '''
     CHOICE_REPO_MSG = \
             'You can select more than one options adding space between them:'
     HEADER_MSG = '#######################################################'\
@@ -264,7 +327,11 @@ class MultipleBuilderCLI:
                             +'to build?\nType only M to default branch master'\
                             +' ou type the desired branch name:\nR: '
 
-    def request_user_repositories(self, initials):        
+    def request_user_repositories(self, initials):
+        '''
+        Return a instance of set with repositories's initials choosed
+        by user.
+        '''
         indexes = self._build_indexes(initials)
         menu = self._build_menu(indexes, initials)
 
@@ -320,6 +387,10 @@ class MultipleBuilderCLI:
                         for m in menu.split('\n') if repo in m])
 
     def request_type_build_comands(self):
+        '''
+        Return the build command choosed by user according the 
+        options stored in Const class
+        '''
         commands = list(Const.BUILD_CMDS.values())
         commands_indexes = list(Const.BUILD_CMDS.keys())
 
@@ -335,6 +406,7 @@ class MultipleBuilderCLI:
         return Const.BUILD_CMDS.get(int(response_index))
 
     def request_branch_to_build(self):
+        '''Return the branch name that the user choosed tho be build'''
         user_response = self._request_user_response(\
                                             self.REQUEST_BRANCH_TO_BUILD_MSG)
 
@@ -343,12 +415,23 @@ class MultipleBuilderCLI:
                         else user_response
     
     def request_is_to_reset(self):
+        '''
+        Return True if user want to reset the Git repository or False otherwise
+        '''
         return self._handle_one_response(self.REQUEST_IS_TO_RESET_MSG)
 
     def request_is_to_update(self):
+        '''
+        Return True if user want to update the Git repository for all
+        repository status or False otherwise
+        '''
         return self._handle_one_response(self.REQUEST_IS_TO_UPDATE_MSG)
 
     def request_is_to_build_all(self):
+        '''
+        Return True if user want to build all the repositories, even those
+        that are already updated or False otherwise
+        '''
         return self._handle_one_response(self.REQUEST_WAY_BUILD_REPO_MSG)
 
     def _handle_one_response(self, request_message):
@@ -378,12 +461,27 @@ class MultipleBuilderCLI:
 
 
 class MultipleBuilderCLIController:
+    '''
+    The controller class responsible for request the information to user
+    using a instance of MultipleBuilderCLI.
+    This object goals is to be a way to communicate to user without any other
+    dependence.
+
+    When an object MultipleBuilderCLIController is initiate two attributes 
+    is also initiate:
+    - MultipleBuilderCLI
+    - CommandArgsProcess
+    '''
 
     def __init__(self):
         self._cli = MultipleBuilderCLI()
         self._command_args  = CommandArgsProcessor()
 
     def create_process(self, repositories):
+        '''
+        Using a list for respositories create an instance of 
+        ProcessBuildFull according to the user preferences and return it. 
+        '''
         process = None
 
         if self._command_args.is_build_full():
@@ -433,6 +531,10 @@ class MultipleBuilderCLIController:
             process.is_build_all = self._cli.request_is_to_build_all()
 
     def create_repositories(self):
+        '''
+        Return a list of Repository instances created according 
+        to the user preferences based on valid repository paths.
+        '''
         repositories_paths = self._get_repositories_paths()
 
         return self._initiate_repositories(repositories_paths)
@@ -452,11 +554,11 @@ class MultipleBuilderCLIController:
                 logger.warning(e)
         
         return repositories
-   
 
 
 class CommandArgument(TypedDict, total=False):
-    """A command argument for the Command Args Processor.
+    '''
+    A command argument for the Command Args Processor.
 
     Attributes:
         flag: The flag identify of the CommandArgument.
@@ -464,7 +566,7 @@ class CommandArgument(TypedDict, total=False):
                 a command method identify.
         action: The action for the CommandArgument.
         help: Text description that helps the usage of the command.
-    """
+    '''
     flag: Text
     name: Text
     action: Text
@@ -472,6 +574,11 @@ class CommandArgument(TypedDict, total=False):
 
 
 class CommandArgsProcessor:
+    '''
+    This object is responsible for handle with a instance of Python
+    argparse.ArgumentParser in order to setup and get the
+    parameters passed when the process is executed.
+    '''
     ACTION_STORE_TRUE = "store_true"
     ARGUMENT_PARSER_DESCRIPTION = \
                         ">>>>> Options to update and build projects! <<<<<"
@@ -557,19 +664,20 @@ class CommandArgsProcessor:
                         help=arg.get('help'))
     
     def is_build_full(self):
-        """Returns True if the build must be full or False is not."""
+        '''Returns True if the build must be full or False is not.'''
         return self._parsed_args.build_full
 
     def is_to_clean_m2(self):
-        """Returns True for to clean the Maven m2 folder or False is not."""
+        '''Returns True for to clean the Maven m2 folder or False is not.'''
         return self._parsed_args.clean_m2
 
     def is_to_skip_menu(self):
-        """Returns True for to skip the menu or False is not."""
+        '''Returns True for to skip the menu or False is not.'''
         return self._parsed_args.skip_menu
 
     @property
     def repos_directory(self):
+        '''Return the absolute path passed by with the parameter -d.'''
         return self._parsed_args.repos_directory
 
 
