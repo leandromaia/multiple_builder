@@ -29,12 +29,7 @@ class Const:
     '''
     PULL_UPDATED = "Already up to date"    
     M2_PATH = ".m2/repository/"
-    REPO_PATHS = ('com.ericsson.bss.ael.aep', 
-                'com.ericsson.bss.ael.aep.plugins',
-                        'com.ericsson.bss.ael.bae',
-                        'com.ericsson.bss.ael.dae',
-                            'com.ericsson.bss.ael.jive',
-                                    'com.ericsson.bss.ael.aep.sdk')
+    REPO_PATHS = ('sample_1', 'sample_2', 'sample_3', 'sample_4', 'sample_5')
 
     BUILD_CMDS = {
         1: 'mvn clean install',
