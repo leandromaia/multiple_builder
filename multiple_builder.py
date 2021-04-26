@@ -4,27 +4,32 @@ import os
 import logging
 import subprocess
 import shutil
-from pathlib import Path
 
+from pathlib import Path
+from typing import TypedDict, Text
+
+#Global object used to logger the hard code messages
 logger = None
 
 
 class BuilderProcessException(Exception):
-    "Raise when a specific command failed during the process executing"
+    '''Raise a found error during the Multiple Builder process executing.'''
+    pass
+
+
+class ProcessNotValid(Exception):
+    '''Raise a warning indicating an invalid rule for execute a process.'''
     pass
 
 
 class Const:
-    PULL_UPDATED = "Already up to date"
-    
+    '''
+    This object is responsible for store all the constants required
+    in the others class process.
+    '''
+    PULL_UPDATED = "Already up to date"    
     M2_PATH = ".m2/repository/"
-
-    REPO_PATHS = ('sample_1',
-                    'sample_2',                    
-                        'sample_3',
-                            'sample_4',
-                                'sample_5',
-                                    'sample_6')
+    REPO_PATHS = ('sample_1', 'sample_2', 'sample_3', 'sample_4', 'sample_5')
 
     BUILD_CMDS = {
         1: 'mvn clean install',
@@ -37,63 +42,115 @@ class Const:
     BUILD_BRANCH_OPT = 'M'
 
 
-class ProcessHandler:
+class ProcessBuildFull:
+    '''
+    This objects represents a process that can be executed with differents
+    Git and Maven commands.
 
-    def __init__(self, process):
-        self._process = process
+    When this object is initiated a empty list of Repository is created,
+    the attribute build_branch is create with the default build command
+    and the others attributes is created as follow:
+    - is_clean_m2 = False
+    - is_to_reset = True
+    - is_to_update = True
+    - is_build_all = True
+    '''
+    GIT_CHECKOUT_CMD = 'git checkout '
+    GIT_CHECKOUT_MASTER_CMD = 'git checkout master'
+    GIT_CLEAN_CMD = 'yes y | git clean -fxd'
+    GIT_RESET_HARD_MASTER_CMD = 'git reset --hard origin/master'
+    GIT_PULL_CMD = 'git pull'
 
-    def start_process(self, repositories):
+    def __init__(self):
+        self.is_clean_m2 = False
+        self.is_to_reset = True
+        self.is_to_update = True
+        self.is_build_all = True
+        self._build_command = None
+        self.build_branch = Const.BUILD_BRANCH
+        self.repositories = list()
+
+    def build_repositories(self):
+        '''
+        Before start the building repositories process,  is checked if it
+        is required to clean the .m2 folder thats will influence in the
+        build process. According to the object attributes the repositories
+        instance will  be built.
+        '''
         self._clean_m2_project_folder()
-        is_to_build = self._check_is_process_to_build()
 
-        for repo in repositories:
-            pull_result = str()
+        for repository in self.repositories:
+            repository_path = repository._absolute_path
 
-            if self._process.is_to_update:
-                pull_result = self._update_repository(repo._absolute_path)
+            self._prepare_repository(repository_path)
 
-            if is_to_build or Const.PULL_UPDATED not in pull_result:
-                self._wrapper_run_process(repo.build_command, \
-                                                    repo._absolute_path)
-            else:
-                logger.info(f'The {repo.repo_initial} has not been built!')
+            pull_result = self._update_repository(repository._absolute_path)
 
-    def _check_is_process_to_build(self):
-        return True \
-            if self._process.is_build_all or self._process.is_clean_m2 or\
-                                                self._process.is_skip_menu\
-            else False
+            self._execute_build_process(repository, pull_result)
 
+    @property
+    def build_command(self):
+        '''
+        Return the _build_command attribute value if it valid or the 
+        default command value.
+        '''
+        return self._build_command \
+            if self._build_command \
+                else Const.BUILD_CMDS.get(1)
+
+    @build_command.setter
+    def build_command(self, command):
+        '''
+        Set the arg command to the attribute _build_command if it is a
+        known command or the default build command otherwise.
+        '''
+        if command in Const.BUILD_CMDS.values():
+            self._build_command = command
+        else:
+            raise BuilderProcessException(\
+                            f"The '{command}' is not a valid Maven command.")
+    
     def _clean_m2_project_folder(self):
-        if self._process.is_clean_m2:
+        if self.is_clean_m2:
             PathHelper.delete_m2()
 
-    def _update_repository(self, repo_path):
-        if self._process.is_to_reset:
-            self._update_with_reset(repo_path)
-        else:
-            args_checkout = ['git', 'checkout', self._process.build_branch]
-            self._wrapper_run_process(args_checkout, repo_path)
+    def _prepare_repository(self, repository_path):
+        self._run_process_command(self.GIT_CLEAN_CMD, repository_path)
         
-        args_pull = ['git', 'pull']
-        return self._wrapper_run_process(args_pull, repo_path)
+        command = self.GIT_CHECKOUT_CMD + self.build_branch
+        self._run_process_command(command, repository_path)
 
-    def _update_with_reset(self, repo_path):
-        args_reset = ['yes', 'y', '|', 'git', 'clean', '-fxd']
-        args_checkout = ['git', 'checkout', 'master']
-        args_reset = ['git', 'reset', '--hard', 'origin/master']
+        self._run_process_command(self.GIT_RESET_HARD_MASTER_CMD, \
+                                                        repository_path)
 
-        self._wrapper_run_process(args_reset, repo_path)
-        self._wrapper_run_process(args_checkout, repo_path)
-        self._wrapper_run_process(args_reset, repo_path)
+    def _update_repository(self, repository_path):
+        if self.is_to_update:
+            return self._run_process_command(self.GIT_PULL_CMD, \
+                                                            repository_path)
 
-    def _wrapper_run_process(self, command, path):
+    def _execute_build_process(self, repository, pull_result):
+        try:
+            self._is_process_to_build(pull_result, repository.initial)
+
+            self._run_process_command(self.build_command, \
+                                                    repository._absolute_path)
+        except ProcessNotValid as e:
+            logger.info(e)
+
+    def _is_process_to_build(self, pull_result, initial):
+        if (not self.is_build_all or not self.is_clean_m2) \
+                and (pull_result is not None \
+                    and Const.PULL_UPDATED in pull_result):
+            raise ProcessNotValid(f'The {initial} has not been built!')
+
+    def _run_process_command(self, command, path):
         try:
             process = subprocess.run(command, shell=True, check=True, \
                                         stdout=subprocess.PIPE, cwd=path, \
                                             universal_newlines=True)
-            logger.info(f'The command: "{command}" to the repository: {path} '+\
-                            f'has executed successfully')
+
+            logger.info(f'The command: "{command}" to the repository: ' +\
+                                        f'{path} has executed successfully')
             return process.stdout
         except subprocess.CalledProcessError as e:
             raise BuilderProcessException(\
@@ -102,290 +159,521 @@ class ProcessHandler:
                                     f'Exception: {e}')
 
 
-class CommandArgsProcessor:
+class ProcessPersonalized(ProcessBuildFull):
+    '''
+    Inherits from the class ProcessBuildFull change the following
+    attributes values:
+    - is_to_reset = False
+    - is_to_update = False
+    - is_build_all = False
+    This object represents the process that the user customize according
+    their needs.
+    '''
 
     def __init__(self):
-        parser = argparse.ArgumentParser(description=\
-                        '>>>>> Options to update and build projects! <<<<<')
-        parser.add_argument('-b', \
-                        '--build-full', \
-                        action='store_true', \
-                        help="Execute the full build command: "+\
-                            f"'{Const.BUILD_CMDS.get(1)}'. " +\
-                            "This option also skip the menu to select the \
-                            others Maven options.")
+        super().__init__()
+        self.is_to_reset = False
+        self.is_to_update = False
+        self.is_build_all = False
+   
 
-        parser.add_argument('-c', \
-                        '--clean-m2', \
-                        action='store_true', \
-                        help="Delete all folders and files from project \
-                            m2 folder.")
-
-        parser.add_argument('-d', \
-                        '--repos-directory', \
-                        help='Add your repositories absolute path. If this \
-                            parameter is not passed the script absolute path \
-                            will be consider as the root path to find the \
-                            repositories folder.')
-
-        parser.add_argument('-sm', \
-                        '--skip-menu', \
-                        action='store_true', \
-                        help='Skip visualization of the CLI User Menu. \
-                            Passing this option all the found repositories \
-                            will be update and build automatically.')
-        self._parsed_args = parser.parse_args()
-    
-    def is_build_full(self):
-        return self._parsed_args.build_full
-
-    def is_to_clean_m2(self):
-        return self._parsed_args.clean_m2
-
-    def is_to_skip_menu(self):
-        return self._parsed_args.skip_menu
-
-    @property
-    def repos_directory(self):
-        return self._parsed_args.repos_directory
+class ProcessSkipMenu(ProcessBuildFull):
+    '''
+    Inherits from the class ProcessBuildFull in order to represent
+    the process that the user wants just pick wich repository to build
+    using the ProcessBuildFull configuration to build it.
+    '''
+    pass
 
 
 class Repository:
-    _initial = None
-    _build_command = None
+    '''
+    The Repository object contains the paths and initial values
+    for a valid Git repository.
+    In the instance initiate an absolute path is required and its
+    validation is performed.
+    '''    
 
     def __init__(self, absolute_path):
-        if os.path.isdir(absolute_path):
-            self._absolute_path = absolute_path
-            self._build_initial_value()
-        else:
-            # FIXME the log below is ambiguous
-            logger.error(f"The directory {absolute_path} doesn't exist!!!")
-            raise OSError(f"The directory {absolute_path} doesn't exist!!!")
+        self._initial = None
+        self._is_valid_absolute_path(absolute_path)        
+        self._absolute_path = absolute_path        
+        self._build_initial_value()
+
+    def _is_valid_absolute_path(self, absolute_path):
+        if not os.path.isdir(absolute_path):
+            raise BuilderProcessException(\
+                            f"The directory {absolute_path} doesn't exist!!!")
 
     def _build_initial_value(self):
         self._initial = self._absolute_path.split('.')[-1].upper()
 
     @property
-    def repo_initial(self):
-        if not self._initial:
-            self._build_initial_value()
-        return self._initial
-
-    @property
-    def build_command(self):
-        if self._build_command:
-            return self._build_command
-        else:
-            return Const.BUILD_CMDS.get(1)
-
-    @build_command.setter
-    def build_command(self, cmd):
-        if cmd in Const.BUILD_CMDS.values():
-            self._build_command = cmd
-        else:
-            raise ValueError(f"The '{cmd}' is not a valid Maven command.")
+    def initial(self):
+        '''Return a short name as a prefix for the object Repository'''
+        return self._initial \
+            if self._initial \
+                else self._build_initial_value()       
 
     def __str__(self):
+        '''Overwrite the __str__ object returning the _initial attribute'''
         return self._initial
 
 
 class PathHelper:
+    '''
+    This is a util class to handle with path and directory process
+    by static methods.
+    '''
 
     @staticmethod
     def delete_m2():
-        absolute_m2_path = Path.joinpath(Path.home(), Const.M2_PATH)
-        
-        if absolute_m2_path.is_dir():
-            try:
-                shutil.rmtree(absolute_m2_path)
-                logger.info(f"The m2 folder: {absolute_m2_path} "+\
-                                            "has deleted sucessfully")
-            except OSError:
-                logger.error(f'Process to delete folders and files from ' + \
-                                        f'{absolute_m2_path} has failed.')
-        else:
-            logger.warning(f'Is not possible to clean the M2 project. ' +\
-                    f'The path {absolute_m2_path} is not a valid directory')
-    
+        '''
+        Delete all the folders and files from the Maven m2 folder
+        '''
+        m2_path = PathHelper._get_m2_path()
+
+        PathHelper._validate_m2_path(m2_path)
+
+        try:
+            shutil.rmtree(m2_path)
+
+            logger.info(f"The m2 folder: {m2_path} "+\
+                                        "has been deleted successfully")
+        except OSError:
+            raise BuilderProcessException(\
+                f'Process to delete folders and files from ' + \
+                                f'{m2_path} has failed.')
+
+    @staticmethod
+    def _get_m2_path():
+        return Path.joinpath(Path.home(), Const.M2_PATH)
+
+    @staticmethod
+    def _validate_m2_path(m2_path):
+        if not m2_path.is_dir():
+            raise BuilderProcessException(\
+                f'Is not possible to clean the M2 project. The path '+\
+                            f'{m2_path} is not a valid directory')
+
     @staticmethod
     def fetch_repo_paths(root_path):
-        if not root_path:
-            root_path = os.getcwd()
+        '''
+        Process the root path and extract all valid repository paths
+        from the root path.
+        '''
+        root_path = PathHelper._get_valid_root_path(root_path)
 
-        all = [f.path for f in os.scandir(root_path) if f.is_dir()]
-        valid_paths = [a for a in all \
-                            for r in Const.REPO_PATHS if a.endswith(r)]
-        return valid_paths
+        absolute_paths = PathHelper.\
+                        _extract_all_absolute_paths_from_root_path(root_path)
+
+        repo_paths = PathHelper._extract_repo_paths(absolute_paths)
+
+        PathHelper._has_valid_repo_paths(repo_paths)
+
+        return repo_paths
+
+    @staticmethod
+    def _get_valid_root_path(root_path):
+        return root_path if root_path else os.getcwd()
+
+    @staticmethod
+    def _extract_all_absolute_paths_from_root_path(root_path):
+        return [f.path for f in os.scandir(root_path) if f.is_dir()]
+
+    @staticmethod
+    def _extract_repo_paths(absolute_paths):
+        return [a for a in absolute_paths \
+                    for r in Const.REPO_PATHS if a.endswith(r)]
+
+    @staticmethod
+    def _has_valid_repo_paths(repo_paths):
+        if len(repo_paths) == 0:
+            raise BuilderProcessException(\
+                f'Failed to read the repositories directories.'+\
+                    'Please make sure you had cloned the GIT repositories.')
 
 
-class CliInterface:
-    MENU_OPTIONS_TO_ONE_ANSWER = (1, 2)
-    POSITIVE_OPTION_TO_ONE_ANSWER = 1
+class MultipleBuilderCLI:
+    '''
+    This object is responsible for be a command line interface with user,
+    using the built-in Python functions: print and input to show messages and
+    request data.
+    '''
+    CHOICE_REPO_MSG = \
+            'You can select more than one options adding space between them:'
+    HEADER_MSG = '#######################################################'\
+                +'\n####### Multiple Builder - Choice Your Options ########'\
+                +'\n#######################################################'
+    MENU_OPTIONS_TO_ONE_RESPONSE = (1, 2)
+    CORRECT_OPTION_TO_ONE_ANSWER = 1
+    REQUEST_IS_TO_RESET_MSG = 'Do you want to reset your repositories branch,'\
+                        +' using "git reset --hard <<branch name >>?":\n1'\
+                        +' - Yes\n2 - No\nR: '
+    REQUEST_IS_TO_UPDATE_MSG = 'Do you want to update all your repositories'\
+                        +' branch, using "git pull":\n1 - Yes\n2 - No\nR: '
+    REQUEST_WAY_BUILD_REPO_MSG = 'Do you want build all your repositories '\
+                                    +'or just that has been updated?'\
+                                    +'\n1 - All.\n2 - Just the updated.\nR: '
+    REQUEST_BUILD_CMD_MSG = 'Which Maven command should to use '\
+                                    +'in build process:\n'
 
-    def ask_desired_repos(self, list_repo):
-        names = [r.repo_initial for r in list_repo]
+    REQUEST_BRANCH_TO_BUILD_MSG = 'Which branch all the repositories should '\
+                            +'to build?\nType only M to default branch master'\
+                            +' ou type the desired branch name:\nR: '
 
-        menu, indexes = self._build_menu_options(names)
+    def request_user_repositories(self, initials):
+        '''
+        Return a instance of set with repositories's initials choosed
+        by user.
+        '''
+        indexes = self._build_indexes(initials)
+        menu = self._build_menu(indexes, initials)
 
-        user_awser = self._show_repo_menu(menu, indexes)
+        repos = self._request_repo_to_build(menu, indexes)
 
-        choices = set([m for r in user_awser \
-                        for m in menu.split('\n') if r in m])
-        return [repo for repo in list_repo \
-                        for c in choices \
-                            if c.endswith(repo.repo_initial)]
+        return self._extract_valid_repo(menu, repos)
 
-    def ask_is_to_reset(self):
-        menu = 'Do you want to reset your repositories branch, '+\
-                'using "git reset --hard <<branch name >>?":\n'+\
-                    '1 - Yes\n2 - No\nR: '
-        user_awser = self._get_only_one_answer(\
-                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
-        return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
-                    else False
+    def _build_indexes(self, options):
+        return [* range(1, len(options) + 1)]
 
-    def ask_is_to_update(self):
-        menu = 'Do you want to update all your repositories branch, '+\
-                'using "git pull":\n'+\
-                    '1 - Yes\n2 - No\nR: '
-        user_awser = self._get_only_one_answer(\
-                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
-        return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
-                    else False
-
-    def ask_is_to_build_all(self):
-        menu = 'Do you want build all your repositories or just that'+\
-            ' has been updated?\n1 - All.\n2 - Just the updated.\nR: '
-        user_awser = self._get_only_one_answer(\
-                                        menu, self.MENU_OPTIONS_TO_ONE_ANSWER)
-        return True \
-                if int(user_awser) == self.POSITIVE_OPTION_TO_ONE_ANSWER \
-                    else False
-
-    def ask_type_command_build(self):
-        cmds = list(Const.BUILD_CMDS.values())
-        key_indexes = list(Const.BUILD_CMDS.keys())
-
-        menu, indexes = self._build_menu_options(cmds, key_indexes)        
-        menu = f"Which Maven command should to use in build process:\n{menu}"
-
-        user_awser = int(self._get_only_one_answer(menu, indexes))
-        return Const.BUILD_CMDS.get(user_awser)
-
-    def ask_wich_build_branch(self):
-        user_awser = input("Which branch all the repositories should to "+ \
-                    "build?\nType only M to default branch master ou type"+ \
-                    " the desired branch name:\nR: ")
-        return Const.BUILD_BRANCH \
-                    if user_awser.upper() == Const.BUILD_BRANCH_OPT \
-                        else user_awser
-
-    def _build_menu_options(self, raw_options, indexes=None):
+    def _build_menu(self, indexes, options):
         menu = str()
-        list_index = None
-        if indexes:
-            list_index = indexes
-        else:
-            list_index = [* range(1, len(raw_options) + 1)]
 
-        for i in range(len(raw_options)):
-            menu = menu + f'{list_index[i]} - {raw_options[i]}\n'
-        else:
-            menu = menu + 'R: '
-        return menu, list_index
+        for index, option in zip(indexes, options):
+            menu = f'{menu}{index} - {option}\n'
 
-    def _show_repo_menu(self, menu, indexes):      
-        print('#########################################################')
-        print('######## Multiple Builder - Choice Your Options #########')
-        print('#########################################################')
+        menu = menu + 'R: '
+        return menu
+
+    def _request_repo_to_build(self, menu, indexes):      
+        self._show_message_to_user(self.HEADER_MSG)
+        
         while True:
-            print(\
-                'You can select more than one options adding space between them:')
-            raw_awser = input(menu).split()
+            user_responses = self._request_with_multiple_response(menu)
 
-            for awser in raw_awser:
-                if not self._is_valid_answer_by_indexes(awser, indexes):
+            for response in user_responses:
+                try:
+                    self._is_valid_response_by_indexes(response, indexes)
+                except ProcessNotValid as e:
+                    logger.warning(e)
                     break
             else:
-                return raw_awser
-           
-    def _get_only_one_answer(self, menu, indexes):
-        user_awser = None
-        while True:
-            user_awser = input(menu)
-            if self._is_valid_answer_by_indexes(user_awser, indexes):
-                break
-        return user_awser
+                return user_responses
+
+    def _show_message_to_user(self, message):
+        print(message)
+
+    def _request_with_multiple_response(self, message):
+        self._show_message_to_user(self.CHOICE_REPO_MSG)
+
+        return self._request_user_response(message).split()
+
+    def _request_user_response(self, message):
+        return input(message)
+
+    def _is_valid_response_by_indexes(self, response, indexes):
+        if int(response) not in indexes:
+            raise ProcessNotValid(f'Invalid choice: Failed - Not a ' +\
+                                f'valid index. Please choose a valid option')
+
+    def _extract_valid_repo(self, menu, repos):
+        return set([m for repo in repos \
+                        for m in menu.split('\n') if repo in m])
+
+    def request_type_build_comands(self):
+        '''
+        Return the build command choosed by user according the 
+        options stored in Const class
+        '''
+        commands = list(Const.BUILD_CMDS.values())
+        commands_indexes = list(Const.BUILD_CMDS.keys())
+
+        menu = self._build_menu(commands_indexes, commands)
+        menu = self.REQUEST_BUILD_CMD_MSG + menu
+
+        return self._handle_build_command_response(menu, commands_indexes)
+
+    def _handle_build_command_response(self, menu, commands_indexes):
+        response_index = self._request_only_one_response(\
+                                                    menu, commands_indexes)
+        
+        return Const.BUILD_CMDS.get(int(response_index))
+
+    def request_branch_to_build(self):
+        '''Return the branch name that the user choosed tho be build'''
+        user_response = self._request_user_response(\
+                                            self.REQUEST_BRANCH_TO_BUILD_MSG)
+
+        return Const.BUILD_BRANCH \
+                    if user_response.upper() == Const.BUILD_BRANCH_OPT \
+                        else user_response
     
-    def _is_valid_answer_by_indexes(self, answer, indexes):
-        try:
-            if int(answer) not in indexes:
-                raise ValueError("Failed - Not a valid index.")
-        except ValueError:
-            logger.warning(f'Invalid choice: {answer}. ' +\
-                                    'Please choose a valid option')
-            return False
-        return True
+    def request_is_to_reset(self):
+        '''
+        Return True if user want to reset the Git repository or False otherwise
+        '''
+        return self._handle_one_response(self.REQUEST_IS_TO_RESET_MSG)
+
+    def request_is_to_update(self):
+        '''
+        Return True if user want to update the Git repository for all
+        repository status or False otherwise
+        '''
+        return self._handle_one_response(self.REQUEST_IS_TO_UPDATE_MSG)
+
+    def request_is_to_build_all(self):
+        '''
+        Return True if user want to build all the repositories, even those
+        that are already updated or False otherwise
+        '''
+        return self._handle_one_response(self.REQUEST_WAY_BUILD_REPO_MSG)
+
+    def _handle_one_response(self, request_message):
+        response = self._request_only_one_response(\
+                                            request_message,\
+                                            self.MENU_OPTIONS_TO_ONE_RESPONSE)
+        return self._is_correct_response(response)
+
+    def _request_only_one_response(self, menu, indexes):
+        user_awser = None
+
+        while True:
+            try:
+                user_awser = self._request_user_response(menu)
+
+                self._is_valid_response_by_indexes(user_awser, indexes)
+                break
+            except ProcessNotValid as e:
+                logger.warning(e)
+
+        return user_awser
+
+    def _is_correct_response(self, response_value):
+        return True if int(response_value) == \
+                            self.CORRECT_OPTION_TO_ONE_ANSWER \
+                                else False
 
 
-class Process:
+class MultipleBuilderCLIController:
+    '''
+    The controller class responsible for request the information to user
+    using a instance of MultipleBuilderCLI.
+    This object goals is to be a way to communicate to user without any other
+    dependence.
+
+    When an object MultipleBuilderCLIController is initiate two attributes 
+    is also initiate:
+    - MultipleBuilderCLI
+    - CommandArgsProcess
+    '''
+
     def __init__(self):
-        self.is_build_full = False
-        self.is_clean_m2 = False
-        self.is_to_reset = False
-        self.is_to_update = False
-        self.is_skip_menu = False
-        self.is_build_all = False
-        self.build_branch = Const.BUILD_BRANCH
+        self._cli = MultipleBuilderCLI()
+        self._command_args  = CommandArgsProcessor()
 
+    def create_process(self, repositories):
+        '''
+        Using a list for respositories create an instance of 
+        ProcessBuildFull according to the user preferences and return it. 
+        '''
+        process = None
 
-class BuildProcessInputs:
-
-    def __init__(self, cli, command_processor, repo_paths):
-        self._cli = cli
-        self._command_processor = command_processor
-        self._build_repositories(repo_paths)
-
-    def build_process(self):
-        self._initiate_process()
-
-        if not self._process.is_skip_menu:
-            self._process.is_to_reset = self._cli.ask_is_to_reset()
-            self._process.is_to_update = self._cli.ask_is_to_update()
-
-            if self._process.is_to_update:
-                self._process.is_build_all = self._cli.ask_is_to_build_all()
-
-            self._process.build_branch = self._cli.ask_wich_build_branch()
-
-            self._format_repositories()
-
-    def _initiate_process(self):
-        self._process = Process()
-        self._process.is_build_full = self._command_processor.is_build_full()
-        self._process.is_clean_m2 = self._command_processor.is_to_clean_m2()
-        self._process.is_skip_menu = self._command_processor.is_to_skip_menu()
-
-    def _build_repositories(self, repo_paths):
-        self._list_repo = [Repository(r) for r in repo_paths]
-        self._list_repo = self._cli.ask_desired_repos(self._list_repo)
-
-    def _format_repositories(self):
-        if not self._process.is_build_full and not self._process.is_skip_menu:
-            build_cmd = self._cli.ask_type_command_build()
+        if self._command_args.is_build_full():
+            process = ProcessBuildFull()
+            process.repositories = repositories
+        elif self._command_args.is_to_skip_menu():
+            process = ProcessSkipMenu()
+            self._setup_personalized_repository(process, repositories)
         else:
-            build_cmd = Const.BUILD_CMDS.get(1)
+            process = ProcessPersonalized()
+            self._setup_personalized_repository(process, repositories)
+            self._set_personalized_process_values(process)
 
-        for r in self._list_repo:
-            r.build_command = build_cmd        
+        process.is_clean_m2 = self._command_args.is_to_clean_m2()
+
+        return process
+
+    def _setup_personalized_repository(self, process, repositories):
+        repositories_initial = self._get_repositories_initial(repositories)
+        
+        user_response = self._cli.request_user_repositories(\
+                                                    repositories_initial)
+                                                    
+        process.repositories = self._filter_repositories_user_response(\
+                                                        user_response, \
+                                                            repositories)
+
+    def _get_repositories_initial(self, repositories):
+        return [r.initial for r in repositories]
+
+    def _filter_repositories_user_response(self, choices, repositories):
+        return [repository for repository in repositories \
+                        for choice in choices \
+                            if choice.endswith(repository.initial)]
+    
+    def _set_personalized_process_values(self, process):
+        process.build_command = self._cli.request_type_build_comands()
+
+        process.is_to_reset = self._cli.request_is_to_reset()
+        process.is_to_update = self._cli.request_is_to_update()
+        process.build_branch = self._cli.request_branch_to_build()
+
+        self._set_is_to_build_all(process)   
+    
+    def _set_is_to_build_all(self, process):
+        if process.is_to_update:
+            process.is_build_all = self._cli.request_is_to_build_all()
+
+    def create_repositories(self):
+        '''
+        Return a list of Repository instances created according 
+        to the user preferences based on valid repository paths.
+        '''
+        repositories_paths = self._get_repositories_paths()
+
+        return self._initiate_repositories(repositories_paths)
+   
+    def _get_repositories_paths(self):
+        paths_from_command_args = self._command_args.repos_directory
+
+        return PathHelper.fetch_repo_paths(paths_from_command_args)
+
+    def _initiate_repositories(self, repositories_paths):
+        repositories = list()
+
+        for path in repositories_paths:
+            try:
+                repositories.append(Repository(path))
+            except BuilderProcessException as e:
+                logger.warning(e)
+        
+        return repositories
+
+
+class CommandArgument(TypedDict, total=False):
+    '''
+    A command argument for the Command Args Processor.
+
+    Attributes:
+        flag: The flag identify of the CommandArgument.
+        name: The body of the CommandArgument, also used as
+                a command method identify.
+        action: The action for the CommandArgument.
+        help: Text description that helps the usage of the command.
+    '''
+    flag: Text
+    name: Text
+    action: Text
+    help: Text
+
+
+class CommandArgsProcessor:
+    '''
+    This object is responsible for handle with a instance of Python
+    argparse.ArgumentParser in order to setup and get the
+    parameters passed when the process is executed.
+    '''
+    ACTION_STORE_TRUE = "store_true"
+    ARGUMENT_PARSER_DESCRIPTION = \
+                        ">>>>> Options to update and build projects! <<<<<"
+
+    BUILD_FLAG = "-b"
+    BUILD_NAME = "--build-full"
+    BUILD_HELP = "Execute the full build command: "+\
+                    f"'{Const.BUILD_CMDS.get(1)}'. " +\
+                    "Passing this option the menu is skipped, all the \
+                    found repositories will be updated and build \
+                    automatically."
+
+    CLEAN_M2_FLAG = "-c"
+    CLEAN_M2_NAME = "--clean-m2"
+    CLEAN_M2_HELP = "Delete all folders and files from .m2 folder."
+
+    REPOS_DIR_FLAG = "-d"
+    REPOS_DIR_NAME = "--repos-directory"
+    REPOS_DIR_HELP = "Add your repositories absolute path. If this \
+                        parameter is not passed the script absolute path \
+                        will be consider as the root path to find the \
+                        repositories folder."
+
+    SKIP_MENU_FLAG = "-sm"
+    SKIP_MENU_NAME = "--skip-menu"
+    SKIP_MENU_HELP = "This option allow to select which repository must be \
+                    updated, but all the others menu questions is skipped."
+
+    def __init__(self):
+        parser = self._initiate_parser()
+
+        arg_list = self._create_arguments()
+
+        self._populate_args(arg_list, parser)
+        self._parsed_args = parser.parse_args()
+
+    def _initiate_parser(self):
+        return argparse.ArgumentParser(description=\
+                                            self.ARGUMENT_PARSER_DESCRIPTION)
+    
+    def _create_arguments(self):
+        arg_list = list()
+
+        build_full = CommandArgument(
+            flag = self.BUILD_FLAG,
+            name = self.BUILD_NAME,
+            action = self.ACTION_STORE_TRUE,
+            help = self.BUILD_HELP
+        )
+
+        clean_m2 = CommandArgument(
+            flag = self.CLEAN_M2_FLAG,
+            name = self.CLEAN_M2_NAME,
+            action = self.ACTION_STORE_TRUE,
+            help = self.CLEAN_M2_HELP
+        )
+
+        skip_menu = CommandArgument(
+            flag = self.SKIP_MENU_FLAG,
+            name = self.SKIP_MENU_NAME,
+            action = self.ACTION_STORE_TRUE,
+            help = self.SKIP_MENU_HELP
+        )
+
+        repos_dir = CommandArgument(
+            flag = self.REPOS_DIR_FLAG,
+            name = self.REPOS_DIR_NAME,
+            help = self.REPOS_DIR_HELP
+        )
+
+        arg_list.append(build_full)
+        arg_list.append(clean_m2)
+        arg_list.append(skip_menu)
+        arg_list.append(repos_dir)
+
+        return arg_list
+
+    def _populate_args(self, arg_list, parser):
+        for arg in arg_list:
+            parser.add_argument(arg.get('flag'),
+                        arg.get('name'),
+                        action=arg.get('action', None),
+                        help=arg.get('help'))
+    
+    def is_build_full(self):
+        '''Returns True if the build must be full or False is not.'''
+        return self._parsed_args.build_full
+
+    def is_to_clean_m2(self):
+        '''Returns True for to clean the Maven m2 folder or False is not.'''
+        return self._parsed_args.clean_m2
+
+    def is_to_skip_menu(self):
+        '''Returns True for to skip the menu or False is not.'''
+        return self._parsed_args.skip_menu
 
     @property
-    def repositories(self):
-        if self._list_repo:
-            return self._list_repo
+    def repos_directory(self):
+        '''Return the absolute path passed by with the parameter -d.'''
+        return self._parsed_args.repos_directory
 
 
 def setup_logger():
@@ -394,30 +682,28 @@ def setup_logger():
     logging.basicConfig(format=logFormatter, level=logging.DEBUG)
     logger = logging.getLogger(__name__)
 
-def main():
+
+def start_build():
     try:
         setup_logger()
-        cmd_args_proc = CommandArgsProcessor()
-        repo_paths = PathHelper.fetch_repo_paths(cmd_args_proc.repos_directory)
 
-        if len(repo_paths) > 0:
-            cli = CliInterface()
-            build_inputs = BuildProcessInputs(cli, cmd_args_proc, repo_paths)
+        cli_controller = MultipleBuilderCLIController()
 
-            handler = ProcessHandler(build_inputs.build_process())
-            handler.start_process(build_inputs.repositories)
-        else:
-            logger.info(f'Failed to read the repositories directories. '+\
-                'Please make sure you had cloned the GIT repositories.')
+        repositories = cli_controller.create_repositories()
+        
+        process = cli_controller.create_process(repositories)
+
+        process.build_repositories()
+
     except KeyboardInterrupt:
         logger.info(f'The process has finished by CTRL+C.')
         logger.info("Exiting! Have a nice day!!!")
     except EOFError:
-        logger.info(f'The process has finished by CTRL+Z.')
+        logger.info(f'The process has finished by Caa TRL+Z.')
         logger.info("Exiting! Have a nice day!!!")
     except BuilderProcessException as e:
-        logger.error(e)
+        logger.error(e, exc_info=True)
 
 
 if __name__ == "__main__":
-    main()
+    start_build()
