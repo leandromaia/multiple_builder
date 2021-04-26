@@ -156,7 +156,7 @@ class ProcessBuildFull:
 
             logger.info(f'The command: "{command}" to the repository: ' +\
                                         f'{path} has executed successfully')
-            return 'process.stdout'
+            return process.stdout
         except subprocess.CalledProcessError as e:
             raise BuilderProcessException(\
                 f'Failed executing the command: "{command}". '+\
